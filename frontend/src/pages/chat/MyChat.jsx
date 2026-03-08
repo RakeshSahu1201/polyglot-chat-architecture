@@ -4,126 +4,136 @@ import Input from "../../components/Input/Input";
 import Messages from "../../components/Messages/Messages";
 import UserContainer from "../../components/UserContainer/UserContainer";
 import ScrollToBottom from "react-scroll-to-bottom";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
+// Single socket instance for the lifetime of the app
 const socket = io(SERVER_URL);
 
 const MyChat = () => {
   const location = useLocation();
-  const logged_user = location.state;
+  const navigate = useNavigate();
+  const logged_user = location.state?.user;
+  const token = location.state?.token;
+
   const [users, setUsers] = useState([]);
   const [to, setTo] = useState("");
   const [message, setMessage] = useState("");
   const [conversation, setConversation] = useState([]);
 
-  socket.on("get_connected_users", ({ connected_users }) => {
-    const connected_users_without_me = connected_users.filter(
-      (user) => user._id !== logged_user._id
-    );
-    setUsers(connected_users_without_me);
-  });
-
-  const handleSendMessageClick = () => {
-    const send_message = {
-      from: logged_user._id,
-      to,
-      body: message,
-    };
-    socket.emit(
-      "send_message",
-      { message: send_message },
-      ({ data, error }) => {
-        if (error) {
-          console.log("send_message_error : ", error);
-          if (error.includes("socket_id")) {
-            setConversation([...conversation, send_message]);
-            setMessage("");
-            return;
-          }
-          alert(error);
-          setMessage("");
-          return;
-        }
-        setMessage("");
-        console.log("send_message : ", data);
-      }
-    );
-  };
-
+  // Use a ref so event listeners always have a fresh reference to conversation
+  // without needing to re-subscribe every time it changes
+  const conversationRef = useRef(conversation);
   useEffect(() => {
-    socket.on("message_sent", ({ new_message }) => {
-      console.log("message_sent : ", new_message);
-      setConversation([...conversation, new_message]);
-    });
+    conversationRef.current = conversation;
   }, [conversation]);
 
+  // Guard: redirect to login if there's no user in state
   useEffect(() => {
-    if (to) {
-      get_conversation({ from: logged_user?._id, to });
+    if (!logged_user) {
+      navigate("/");
     }
-  }, [logged_user, to]);
+  }, [logged_user, navigate]);
 
+  // Register on the server
   useEffect(() => {
+    if (!logged_user) return;
     socket.emit("login_me", { logged_user });
   }, [logged_user]);
 
-  // rest api for conversation in axios
+  // Fetch conversation history when switching chat partner
+  useEffect(() => {
+    if (to && logged_user) {
+      get_conversation({ from: logged_user._id, to });
+    }
+  }, [to, logged_user]);
+
+  // Wire up socket listeners ONCE — cleanup on unmount
+  useEffect(() => {
+    const handleUsers = ({ connected_users }) => {
+      const others = connected_users.filter((u) => u._id !== logged_user?._id);
+      setUsers(others);
+    };
+
+    const handleNewMessage = ({ new_message }) => {
+      setConversation((prev) => [...prev, new_message]);
+    };
+
+    socket.on("get_connected_users", handleUsers);
+    socket.on("message_sent", handleNewMessage);
+
+    return () => {
+      socket.off("get_connected_users", handleUsers);
+      socket.off("message_sent", handleNewMessage);
+    };
+  }, []); // empty deps — register once
+
+  // ─── REST API ────────────────────────────────────────────────────────────
 
   const get_conversation = async ({ from, to }) => {
     try {
-      const result = await axios.post(`${SERVER_URL}/conversation/from-to`, {
-        from,
-        to,
-      });
+      const result = await axios.post(
+        `${SERVER_URL}/conversation/from-to`,
+        { from, to },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       if (result.data.error) {
-        console.log("error while get converation : ", result.data.error);
         alert(result.data.error);
         return;
       }
-      const conversation_from_to = result.data;
-      setConversation(conversation_from_to);
+      setConversation(result.data);
     } catch (error) {
-      console.log("Mychat.jsx get conversation : ", error.message);
+      console.error("get_conversation error:", error.message);
     }
   };
 
-  // sending media :
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
-
-    if (file === undefined) return;
+    if (!file) return;
 
     try {
       const media = new FormData();
       media.append("from", logged_user._id);
       media.append("to", to);
       media.append("media", file);
-      const result = await axios.post(
-        `${SERVER_URL}/conversation/media`,
-        media,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data", // Set the content type for FormData
-          },
-        }
-      );
+
+      const result = await axios.post(`${SERVER_URL}/conversation/media`, media, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
       if (result.data.error) {
-        console.log("error while media converation : ", result.data.error);
         alert(result.data.error);
         return;
       }
-      console.log("conversation from to : ", result);
       socket.emit("send_media", { media_message: result.data });
       alert("media sent");
     } catch (error) {
-      console.log("Mychat.jsx media conversation : ", error.message);
+      console.error("handleFileUpload error:", error.message);
     }
   };
+
+  // ─── Socket emit ────────────────────────────────────────────────────────
+
+  const handleSendMessageClick = () => {
+    if (!to || !message.trim()) return;
+    const send_message = { from: logged_user._id, to, body: message };
+    socket.emit("send_message", { message: send_message }, ({ data, error }) => {
+      if (error) {
+        console.error("send_message error:", error);
+        alert(error);
+      }
+      setMessage("");
+    });
+  };
+
+  if (!logged_user) return null; // redirect is in progress
 
   return (
     <div>

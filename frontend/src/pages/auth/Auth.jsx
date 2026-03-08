@@ -7,38 +7,56 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
 const Auth = () => {
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleRegisterClick = async () => {
+    if (!name.trim() || !password.trim()) {
+      alert("name and password are required");
+      return;
+    }
+    setLoading(true);
     try {
       const result = await axios.post(`${SERVER_URL}/user/register-user`, {
-        user: name,
+        name,
+        password,
       });
       if (result.data.error) {
-        console.log("error while creating user ", result.data.error);
         alert(result.data.error);
         return;
       }
-      navigate("/chat", { state: result.data });
+      // Pass both user and token so MyChat can authenticate REST calls
+      navigate("/chat", { state: { user: result.data.user, token: result.data.token } });
     } catch (error) {
-      console.log("auth.jsx error : ", error.message);
+      const msg = error.response?.data?.error || error.message;
+      alert(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleLoginClick = async () => {
+    if (!name.trim() || !password.trim()) {
+      alert("name and password are required");
+      return;
+    }
+    setLoading(true);
     try {
       const result = await axios.post(`${SERVER_URL}/user/login-user`, {
-        user: name,
+        name,
+        password,
       });
-      const user = await result.data;
       if (result.data.error) {
-        console.log("error while login user ", result.data.error);
         alert(result.data.error);
         return;
       }
-      navigate("/chat", { state: user });
+      navigate("/chat", { state: { user: result.data.user, token: result.data.token } });
     } catch (error) {
-      console.log("auth.jsx login error : ", error.message);
+      const msg = error.response?.data?.error || error.message;
+      alert(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -58,23 +76,34 @@ const Auth = () => {
             placeholder="Name"
             className="joinInput input-box"
             type="text"
-            onChange={(event) => setName(event.target.value)}
-          ></input>
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
-
+        <div>
+          <input
+            placeholder="Password"
+            className="joinInput input-box"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
         <button
           className="button mt-20"
-          type="submit"
+          type="button"
           onClick={handleRegisterClick}
+          disabled={loading}
         >
-          Register
+          {loading ? "..." : "Register"}
         </button>
         <button
           className="button mt-20"
-          type="submit"
+          type="button"
           onClick={handleLoginClick}
+          disabled={loading}
         >
-          Login
+          {loading ? "..." : "Login"}
         </button>
       </div>
     </div>
