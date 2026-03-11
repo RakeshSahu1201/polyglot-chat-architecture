@@ -1,0 +1,54 @@
+# ── Dependencies ──────────────────────────────────────────
+node_modules/
+vendor/
+
+# ── Environment & secrets ─────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Build output ──────────────────────────────────────────
+dist/
+build/
+out/
+.next/
+
+# ── Logs ──────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Runtime & OS ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.pid
+*.seed
+*.pid.lock
+
+# ── Uploads / media ───────────────────────────────────────
+backend/media/
+
+# ── Go ────────────────────────────────────────────────────
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go/bin/
+go/pkg/
+
+# ── Editor ────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── Vite cache ────────────────────────────────────────────
+frontend/.vite/

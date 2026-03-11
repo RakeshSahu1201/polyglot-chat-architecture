@@ -1,19 +1,25 @@
 import React from "react";
-
 import "./Input.css";
 
 const Input = ({ message, setMessage, sendMessage, handleFileUpload }) => (
   <div className="form">
-    <input type="file" className="file" onChange={handleFileUpload} />
+    {/* Styled file upload — hidden input, visible label */}
+    <label className="file-label" title="Attach file">
+      📎
+      <input type="file" className="file" onChange={handleFileUpload} />
+    </label>
+
     <input
       className="input"
       type="text"
-      placeholder="Type message ..."
+      placeholder="Type a message..."
       value={message}
-      onChange={(event) => setMessage(event.target.value)}
+      onChange={(e) => setMessage(e.target.value)}
+      onKeyDown={(e) => e.key === "Enter" && sendMessage()}
     />
+
     <button className="sendButton" onClick={sendMessage}>
-      Send Message
+      Send ➤
     </button>
   </div>
 );

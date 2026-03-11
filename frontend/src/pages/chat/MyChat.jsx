@@ -136,43 +136,37 @@ const MyChat = () => {
   if (!logged_user) return null; // redirect is in progress
 
   return (
-    <div>
-      <div className="outer">
-        <div className="chat-container">
-          <div className="search-container" style={{ background: "#74b816" }}>
-            <h2>Chat App</h2>
-            <span>{logged_user.name}</span>
-          </div>
+    <div className="outer">
+      <div className="chat-container">
+        {/* Sidebar — search-container maps to the sidebar grid area */}
+        <div className="search-container">
+          <h2>ChatGram</h2>
+          <span>{logged_user.name}</span>
+          <UserContainer users={users} setTo={setTo} />
+        </div>
 
-          <div className="conversation-list" style={{ background: "#74b816" }}>
-            <UserContainer users={users} setTo={setTo} />
-          </div>
+        {/* Header */}
+        <div className="chat-title">
+          <InfoBar
+            room={users
+              ?.filter((user) => user._id === to)
+              .map((user) => user.name)}
+          />
+        </div>
 
-          <div
-            className="new-message-container"
-            style={{ background: "#74b816" }}
-          ></div>
+        {/* Message list */}
+        <ScrollToBottom className="chat-message-list">
+          <Messages messages={conversation} />
+        </ScrollToBottom>
 
-          <div className="chat-title">
-            <InfoBar
-              room={users
-                ?.filter((user) => user._id === to)
-                .map((user) => user.name)}
-            />
-          </div>
-
-          <ScrollToBottom className="chat-message-list">
-            <Messages messages={conversation} />
-          </ScrollToBottom>
-
-          <div className="chat-form">
-            <Input
-              message={message}
-              setMessage={setMessage}
-              sendMessage={handleSendMessageClick}
-              handleFileUpload={handleFileUpload}
-            />
-          </div>
+        {/* Input bar */}
+        <div className="chat-form">
+          <Input
+            message={message}
+            setMessage={setMessage}
+            sendMessage={handleSendMessageClick}
+            handleFileUpload={handleFileUpload}
+          />
         </div>
       </div>
     </div>

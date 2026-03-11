@@ -1,67 +1,55 @@
-.messageBox {
-  background: #F3F3F3;
-  border-radius: 20px;
-  padding: 5px 20px;
-  color: white;
-  display: inline-block;
-  max-width: 80%;
-}
-
-.messageText {
-  width: 100%;
-  letter-spacing: 0;
-  float: left;
-  font-size: 1.1em;
-  word-wrap: break-word;
-}
-
-.messageText img {
-  vertical-align: middle;
-}
-
+/* ── Message bubble ─────────────────────────────────────────── */
 .messageContainer {
   display: flex;
-  justify-content: flex-end;
-  padding: 0 5%;
-  margin-top: 3px;
-}
-
-.sentText {
-  display: flex;
-  align-items: center;
-  font-family: Helvetica;
-  color: #828282;
-  letter-spacing: 0.3px;
-}
-
-.pl-10 {
-  padding-left: 10px;
-}
-
-.pr-10 {
-  padding-right: 10px;
-}
-
-.justifyStart {
-  justify-content: flex-start;
+  padding: 3px 20px;
 }
 
 .justifyEnd {
   justify-content: flex-end;
 }
 
+.justifyStart {
+  justify-content: flex-start;
+}
+
+.messageBox {
+  max-width: 68%;
+  padding: 10px 16px;
+  border-radius: 18px;
+  line-height: 1.5;
+  word-break: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* Sent by me — indigo/violet gradient */
+.backgroundBlue {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-bottom-right-radius: 4px;
+}
+
+/* Received — subtle dark card */
+.backgroundLight {
+  background: #252836;
+  border-bottom-left-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.messageText {
+  font-size: 0.93rem;
+  letter-spacing: 0.01em;
+}
+
 .colorWhite {
-  color: white;
+  color: #fff;
 }
 
 .colorDark {
-  color: #353535;
+  color: #c8d0e0;
 }
 
-.backgroundBlue {
-  background: #2979FF;
-}
-
-.backgroundLight {
-  background: #F3F3F3;
+/* Media (image/video) in messages */
+.messageText img:not([alt='emoji']) {
+  max-width: 240px;
+  border-radius: 10px;
+  display: block;
 }

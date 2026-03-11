@@ -1,18 +1,20 @@
-import React from 'react';
+import React from "react";
+import "./InfoBar.css";
 
-import closeIcon from '../../images/closeIcon.png';
+const InfoBar = ({ room }) => {
+  const name = Array.isArray(room) ? room[0] : room;
+  const initial = name ? name[0].toUpperCase() : "?";
 
-import './InfoBar.css';
-
-const InfoBar = ({room})=>(
-  <div className="infoBar">
-    <div className="leftInnerContainer">
-      <h3>{room}</h3>
+  return (
+    <div className="infoBar">
+      <div className="leftInnerContainer" data-initial={initial}>
+        <h3>{name || "Select a user"}</h3>
+      </div>
+      <div className="rightInnerContainer">
+        <a href="/" title="Leave chat">✕</a>
+      </div>
     </div>
-    <div className="rightInnerContainer">
-      <a href="/"><img src={closeIcon} alt="close" /></a>
-    </div>
-  </div>
-)
+  );
+};
 
 export default InfoBar;
