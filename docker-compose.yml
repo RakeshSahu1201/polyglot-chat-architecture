@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: chat-postgres
+    environment:
+      POSTGRES_USER: chatuser
+      POSTGRES_PASSWORD: chatpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db-init:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - chat-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatuser"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:6-jammy
+    container_name: chat-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+    networks:
+      - chat-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: chat-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - chat-net
+
+  auth-service:
+    build:
+      context: ./go-service
+      dockerfile: Dockerfile.auth
+    container_name: chat-auth
+    ports:
+      - "8080:8080"
+    environment:
+      - AUTH_PORT=8080
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=chatuser
+      - PG_PASSWORD=chatpass
+      - PG_DB=chatdb
+      - PG_SSLMODE=disable
+      - JWT_SECRET=super_secret_key_123
+      - CORS_ORIGIN=http://localhost:5173
+    depends_on:
+      - postgres
+    networks:
+      - chat-net
+    restart: unless-stopped
+
+  channel-service:
+    build:
+      context: ./go-service
+      dockerfile: Dockerfile.channel
+    container_name: chat-channel
+    ports:
+      - "8081:8081"
+    environment:
+      - CHANNEL_PORT=8081
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=chatuser
+      - PG_PASSWORD=chatpass
+      - PG_DB=chatdb
+      - PG_SSLMODE=disable
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=super_secret_key_123
+      - CORS_ORIGIN=http://localhost:5173
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - chat-net
+    restart: unless-stopped
+
+  chat-service:
+    build:
+      context: ./backend
+    container_name: chat-nodejs
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://mongodb:27017/chat
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=super_secret_key_123
+      - CORS_ORIGIN=http://localhost:5173
+    volumes:
+      - media_volume:/app/media
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - chat-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: chat-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_AUTH_URL=http://localhost:8080
+      - VITE_CHANNEL_URL=http://localhost:8081
+      - VITE_SERVER_URL=http://localhost:5000
+    depends_on:
+      - auth-service
+      - channel-service
+      - chat-service
+    networks:
+      - chat-net
+
+networks:
+  chat-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  mongodata:
+  media_volume:
