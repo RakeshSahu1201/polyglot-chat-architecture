@@ -1,6 +1,6 @@
 import "./UserContainer.css";
 
-const UserContainer = ({ users, setTo }) => {
+const UserContainer = ({ users, setTo, activeTo }) => {
   const handleToClick = (e) => {
     const id = e.currentTarget.getAttribute("id");
     setTo(id);
@@ -20,6 +20,12 @@ const UserContainer = ({ users, setTo }) => {
                 data-initial={user.name?.[0]?.toUpperCase() ?? "?"}
                 onClick={handleToClick}
                 title={user.name}
+                style={{
+                  background: activeTo === user._id ? 'rgba(79, 70, 229, 0.2)' : 'transparent',
+                  color: activeTo === user._id ? '#818cf8' : '#e2e8f0',
+                  fontWeight: activeTo === user._id ? '600' : '400',
+                  borderRadius: activeTo === user._id ? '6px' : '0'
+                }}
               >
                 {user.name}
               </div>

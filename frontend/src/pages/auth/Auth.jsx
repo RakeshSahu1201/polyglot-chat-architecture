@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./Auth.css";
 import axios from "axios";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL;
+const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:8080';
 
 const Auth = () => {
   const [name, setName] = useState("");
@@ -18,7 +18,7 @@ const Auth = () => {
     }
     setLoading(true);
     try {
-      const result = await axios.post(`${SERVER_URL}/user/register-user`, {
+      const result = await axios.post(`${AUTH_URL}/auth/register`, {
         name,
         password,
       });
@@ -26,7 +26,6 @@ const Auth = () => {
         alert(result.data.error);
         return;
       }
-      // Pass both user and token so MyChat can authenticate REST calls
       navigate("/chat", { state: { user: result.data.user, token: result.data.token } });
     } catch (error) {
       const msg = error.response?.data?.error || error.message;
@@ -43,7 +42,7 @@ const Auth = () => {
     }
     setLoading(true);
     try {
-      const result = await axios.post(`${SERVER_URL}/user/login-user`, {
+      const result = await axios.post(`${AUTH_URL}/auth/login`, {
         name,
         password,
       });

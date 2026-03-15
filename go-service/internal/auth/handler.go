@@ -89,13 +89,28 @@ func Login(c *gin.Context) {
 // GET /auth/me  (requires Auth middleware)
 func Me(c *gin.Context) {
 	userID, _ := c.Get("userID")
-	userName, _ := c.Get("userName")
 
 	user, err := GetUserByID(c.Request.Context(), userID.(string))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
-	_ = userName
 	c.JSON(http.StatusOK, gin.H{"user": gin.H{"_id": user.ID, "name": user.Name}})
+}
+
+// GET /users  (requires Auth middleware)
+func GetUsersHandler(c *gin.Context) {
+	users, err := GetUsers(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	// Map to the shape the frontend might expect if needed
+	var response []gin.H
+	for _, u := range users {
+		response = append(response, gin.H{"_id": u.ID, "name": u.Name})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": response})
 }

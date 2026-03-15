@@ -70,6 +70,19 @@ const getSocketId = async (userId) => {
   return JSON.parse(raw).socket_id;
 };
 
+/** Get all currently online users from Redis */
+const getOnlineUsers = async () => {
+  const keys = await redis.keys("online:*");
+  const users = [];
+  for (const key of keys) {
+    const raw = await redis.get(key);
+    if (raw) {
+      users.push(JSON.parse(raw));
+    }
+  }
+  return users;
+};
+
 // ---------------------------------------------------------------------------
 // Socket.IO
 // ---------------------------------------------------------------------------
@@ -81,7 +94,7 @@ io.on("connection", (socket) => {
     if (!logged_user) return;
     try {
       await setUserOnline(logged_user, socket.id);
-      const { data: connected_users } = await get_users();
+      const connected_users = await getOnlineUsers();
       io.emit("get_connected_users", { connected_users });
     } catch (err) {
       console.error("login_me error:", err.message);
@@ -91,7 +104,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", async () => {
     try {
       await removeUserBySocketId(socket.id);
-      const { data: connected_users } = await get_users();
+      const connected_users = await getOnlineUsers();
       io.emit("get_connected_users", { connected_users });
     } catch (err) {
       console.error("disconnect cleanup error:", err.message);
@@ -136,6 +149,41 @@ io.on("connection", (socket) => {
     }
   });
 });
+// ---------------------------------------------------------------------------
+// Redis Pub/Sub for Channel Events (from Go channel-service)
+// ---------------------------------------------------------------------------
+
+const redisSubscriber = redis.duplicate();
+
+redisSubscriber.on("error", (err) => {
+  console.error("Redis Subscriber Error:", err);
+});
+
+async function setupRedisSubscriber() {
+  await redisSubscriber.connect();
+  console.log("Redis Subscriber connected to relay channel events");
+
+  // Subscribe to all channel events using pSubscribe
+  await redisSubscriber.pSubscribe("channel:*", (message, channel) => {
+    try {
+      const event = JSON.parse(message);
+      if (event.type === "channel_message") {
+        const channelId = event.channelId;
+        const msgData = event.message;
+
+        // In a real app we'd query Go or Redis for the current online members of THIS channel.
+        // For simplicity right now, we can just broadcast to ALL online users, and the React frontend 
+        // will decide if it cares about this channel ID.
+        // A better optimization later: io.to(`channel-room-${channelId}`).emit(...)
+        io.emit("channel_message", { channelId, message: msgData });
+      }
+    } catch (err) {
+      console.error("Redis channel message parse error:", err);
+    }
+  });
+}
+
+setupRedisSubscriber().catch(console.error);
 
 // ---------------------------------------------------------------------------
 // REST routes

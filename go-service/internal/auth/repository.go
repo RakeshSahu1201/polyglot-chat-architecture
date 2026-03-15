@@ -49,3 +49,21 @@ func GetUserByID(ctx context.Context, id string) (*User, error) {
 	}
 	return u, nil
 }
+
+func GetUsers(ctx context.Context) ([]*User, error) {
+	rows, err := db.Pool.Query(ctx, `SELECT id, name FROM users ORDER BY name ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("GetUsers: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*User
+	for rows.Next() {
+		u := &User{}
+		if err := rows.Scan(&u.ID, &u.Name); err != nil {
+			return nil, fmt.Errorf("GetUsers scan: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
