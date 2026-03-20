@@ -7,8 +7,6 @@ const { Server } = require("socket.io");
 const { config } = require("./db/MongoConnection");
 const redis = require("./db/RedisClient");
 const { create_conversation } = require("./repository/Conversation");
-const { get_users } = require("./repository/User");
-const user_router = require("./router/User");
 const conversation_router = require("./router/Conversation");
 
 const app = express();
@@ -189,7 +187,6 @@ setupRedisSubscriber().catch(console.error);
 // REST routes
 // ---------------------------------------------------------------------------
 
-app.use("/user", user_router);
 app.use("/conversation", conversation_router);
 
 const PORT = process.env.PORT || 5000;

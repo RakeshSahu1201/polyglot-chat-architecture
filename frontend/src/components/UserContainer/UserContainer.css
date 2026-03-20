@@ -4,6 +4,25 @@
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2e3348 transparent;
+}
+
+.textContainer::-webkit-scrollbar {
+  width: 4px;
+}
+
+.textContainer::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.textContainer::-webkit-scrollbar-thumb {
+  background: #2e3348;
+  border-radius: 4px;
+}
+
+.textContainer::-webkit-scrollbar-thumb:hover {
+  background: #6366f1;
 }
 
 .user-container {
@@ -59,21 +78,5 @@
   font-size: 0.8rem;
   font-weight: 700;
   color: #fff;
-  flex-shrink: 0;
-}
-
-/* Online dot — replaces the old PNG */
-.activeItem img {
-  display: none;
-}
-
-.activeItem::after {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #4ade80;
-  box-shadow: 0 0 6px rgba(74, 222, 128, 0.7);
-  margin-left: auto;
   flex-shrink: 0;
 }

@@ -23,14 +23,7 @@ func main() {
 	if err := db.InitPostgres(ctx); err != nil {
 		log.Fatalf("postgres init: %v", err)
 	}
-	defer db.Pool.Close()
 	log.Println("Auth Service: PostgreSQL connected")
-
-	// Run migrations (Auth service handles users table, but Migration runs all for simplicity right now)
-	if err := db.Migrate(ctx); err != nil {
-		log.Fatalf("migrate: %v", err)
-	}
-	log.Println("Migrations applied")
 
 	r := gin.Default()
 

@@ -6,11 +6,13 @@ const UserContainer = ({ users, setTo, activeTo }) => {
     setTo(id);
   };
 
+  const onlineCount = users ? users.filter(u => u.isOnline).length : 0;
+
   return (
     <div className="textContainer">
       {users && users.length > 0 ? (
         <div className="user-container">
-          <h3>Online — {users.length}</h3>
+          <h3>Users (Online: {onlineCount})</h3>
           <div className="activeContainer">
             {users.map((user) => (
               <div
@@ -22,11 +24,22 @@ const UserContainer = ({ users, setTo, activeTo }) => {
                 title={user.name}
                 style={{
                   background: activeTo === user._id ? 'rgba(79, 70, 229, 0.2)' : 'transparent',
-                  color: activeTo === user._id ? '#818cf8' : '#e2e8f0',
+                  color: activeTo === user._id ? '#818cf8' : (user.isOnline ? '#e2e8f0' : '#64748b'),
                   fontWeight: activeTo === user._id ? '600' : '400',
-                  borderRadius: activeTo === user._id ? '6px' : '0'
+                  borderRadius: activeTo === user._id ? '6px' : '0',
+                  opacity: user.isOnline ? 1 : 0.6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}
               >
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: user.isOnline ? '#10b981' : '#475569',
+                  boxShadow: user.isOnline ? '0 0 5px #10b981' : 'none'
+                }}></div>
                 {user.name}
               </div>
             ))}
@@ -34,9 +47,9 @@ const UserContainer = ({ users, setTo, activeTo }) => {
         </div>
       ) : (
         <div className="user-container">
-          <h3>Online — 0</h3>
+          <h3>Users — 0</h3>
           <p style={{ color: "#4a5168", fontSize: "0.8rem", padding: "8px 20px" }}>
-            No other users online
+            No users found
           </p>
         </div>
       )}

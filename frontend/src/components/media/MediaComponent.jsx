@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 const MediaComponent = ({ mediaUrl }) => {
   const [loading, setLoading] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -32,7 +33,7 @@ const MediaComponent = ({ mediaUrl }) => {
     const extension = mediaUrl.split(".").pop().toLowerCase();
     if (["jpg", "jpeg", "png", "gif"].includes(extension)) {
       return "image";
-    } else if (["txt","pdf","doc"].includes(extension)) {
+    } else if (["txt", "pdf", "doc"].includes(extension)) {
       return "text";
     } else if (["mp4", "webm", "ogg", "mkv"].includes(extension)) {
       return "video";

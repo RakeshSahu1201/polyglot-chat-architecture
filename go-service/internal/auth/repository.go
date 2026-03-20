@@ -4,66 +4,74 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+	"github.com/polyglot-chat/go-service/ent"
+	"github.com/polyglot-chat/go-service/ent/user"
 	"github.com/polyglot-chat/go-service/pkg/db"
 )
 
+// User is a plain data-transfer struct returned from this package.
+// We keep it so handlers don't import the generated ent types directly.
 type User struct {
-	ID       string `json:"id"`
+	ID       string `json:"_id"`
 	Name     string `json:"name"`
 	Password string `json:"-"` // never serialised
 }
 
+func entToUser(u *ent.User) *User {
+	return &User{ID: u.ID.String(), Name: u.Name, Password: u.Password}
+}
+
+// CreateUser inserts a new user and returns the saved record.
 func CreateUser(ctx context.Context, name, hashedPassword string) (*User, error) {
-	u := &User{}
-	err := db.Pool.QueryRow(ctx,
-		`INSERT INTO users (name, password) VALUES ($1, $2)
-		 RETURNING id, name`,
-		name, hashedPassword,
-	).Scan(&u.ID, &u.Name)
+	u, err := db.Client.User.
+		Create().
+		SetName(name).
+		SetPassword(hashedPassword).
+		Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("CreateUser: %w", err)
 	}
-	return u, nil
+	return entToUser(u), nil
 }
 
+// GetUserByName looks up a user by their unique name (for login).
 func GetUserByName(ctx context.Context, name string) (*User, error) {
-	u := &User{}
-	err := db.Pool.QueryRow(ctx,
-		`SELECT id, name, password FROM users WHERE name = $1`,
-		name,
-	).Scan(&u.ID, &u.Name, &u.Password)
+	u, err := db.Client.User.
+		Query().
+		Where(user.Name(name)).
+		Only(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GetUserByName: %w", err)
 	}
-	return u, nil
+	return entToUser(u), nil
 }
 
+// GetUserByID looks up a user by UUID (for JWT /me endpoint).
 func GetUserByID(ctx context.Context, id string) (*User, error) {
-	u := &User{}
-	err := db.Pool.QueryRow(ctx,
-		`SELECT id, name FROM users WHERE id = $1`,
-		id,
-	).Scan(&u.ID, &u.Name)
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserByID parse: %w", err)
+	}
+	u, err := db.Client.User.Get(ctx, uid)
 	if err != nil {
 		return nil, fmt.Errorf("GetUserByID: %w", err)
 	}
-	return u, nil
+	return entToUser(u), nil
 }
 
+// GetUsers returns all users ordered by name, excluding passwords.
 func GetUsers(ctx context.Context) ([]*User, error) {
-	rows, err := db.Pool.Query(ctx, `SELECT id, name FROM users ORDER BY name ASC`)
+	rows, err := db.Client.User.
+		Query().
+		Order(ent.Asc(user.FieldName)).
+		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GetUsers: %w", err)
 	}
-	defer rows.Close()
-
-	var users []*User
-	for rows.Next() {
-		u := &User{}
-		if err := rows.Scan(&u.ID, &u.Name); err != nil {
-			return nil, fmt.Errorf("GetUsers scan: %w", err)
-		}
-		users = append(users, u)
+	result := make([]*User, len(rows))
+	for i, u := range rows {
+		result[i] = entToUser(u)
 	}
-	return users, nil
+	return result, nil
 }

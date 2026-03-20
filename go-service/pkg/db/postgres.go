@@ -2,14 +2,20 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"entgo.io/ent/dialect"
+	entsql "entgo.io/ent/dialect/sql"
+	_ "github.com/lib/pq"
+	"github.com/polyglot-chat/go-service/ent"
 )
 
-var Pool *pgxpool.Pool
+// Client is the global ent client shared by both services.
+var Client *ent.Client
 
+// InitPostgres opens the database connection via ent and runs auto-migration.
 func InitPostgres(ctx context.Context) error {
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
@@ -21,62 +27,22 @@ func InitPostgres(ctx context.Context) error {
 		os.Getenv("PG_SSLMODE"),
 	)
 
-	pool, err := pgxpool.New(ctx, dsn)
+	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return fmt.Errorf("pgxpool.New: %w", err)
+		return fmt.Errorf("sql.Open: %w", err)
 	}
 
-	if err := pool.Ping(ctx); err != nil {
+	if err := db.PingContext(ctx); err != nil {
 		return fmt.Errorf("postgres ping: %w", err)
 	}
 
-	Pool = pool
-	return nil
-}
+	drv := entsql.OpenDB(dialect.Postgres, db)
+	Client = ent.NewClient(ent.Driver(drv))
 
-// Migrate creates all required tables if they don't exist.
-func Migrate(ctx context.Context) error {
-	queries := []string{
-		`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`,
-
-		`CREATE TABLE IF NOT EXISTS users (
-			id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			name        TEXT UNIQUE NOT NULL,
-			password    TEXT NOT NULL,
-			created_at  TIMESTAMPTZ DEFAULT now()
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS channels (
-			id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			name        TEXT NOT NULL,
-			type        TEXT NOT NULL DEFAULT 'open',
-			invite_code TEXT UNIQUE NOT NULL,
-			owner_id    UUID REFERENCES users(id) ON DELETE CASCADE,
-			created_at  TIMESTAMPTZ DEFAULT now()
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS channel_members (
-			channel_id  UUID REFERENCES channels(id) ON DELETE CASCADE,
-			user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
-			joined_at   TIMESTAMPTZ DEFAULT now(),
-			PRIMARY KEY (channel_id, user_id)
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS channel_messages (
-			id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			channel_id  UUID REFERENCES channels(id) ON DELETE CASCADE,
-			user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
-			user_name   TEXT NOT NULL,
-			body        TEXT,
-			media_url   TEXT,
-			created_at  TIMESTAMPTZ DEFAULT now()
-		)`,
+	// Auto-migrate: create/alter tables to match the ent schema.
+	if err := Client.Schema.Create(ctx); err != nil {
+		return fmt.Errorf("ent auto-migrate: %w", err)
 	}
 
-	for _, q := range queries {
-		if _, err := Pool.Exec(ctx, q); err != nil {
-			return fmt.Errorf("migrate: %w", err)
-		}
-	}
 	return nil
 }

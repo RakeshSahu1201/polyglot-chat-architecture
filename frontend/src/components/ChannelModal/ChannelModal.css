@@ -1,0 +1,149 @@
+.channel_modal_overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.channel_modal_card {
+    background: #1e2133;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 32px;
+    width: min(420px, 90vw);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+    animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.channel_modal_card h2 {
+    margin: 0 0 6px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.channel_modal_card p {
+    margin: 0 0 24px;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.channel_modal_card label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 6px;
+}
+
+.channel_modal_card input,
+.channel_modal_card select {
+    width: 100%;
+    padding: 10px 14px;
+    background: #0f1117;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 0.95rem;
+    margin-bottom: 18px;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+}
+
+.channel_modal_card input:focus,
+.channel_modal_card select:focus {
+    border-color: #6366f1;
+}
+
+.channel_modal_card select option {
+    background: #1e2133;
+}
+
+.modal_actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.modal_btn_cancel {
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+}
+
+.modal_btn_cancel:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.modal_btn_submit {
+    padding: 9px 20px;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: opacity 0.15s;
+}
+
+.modal_btn_submit:hover {
+    opacity: 0.9;
+}
+
+.modal_btn_submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* invite code display after creation */
+.invite_code_box {
+    background: #0f1117;
+    border: 1px dashed #6366f1;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: monospace;
+    font-size: 1rem;
+    color: #818cf8;
+    letter-spacing: 0.1em;
+    text-align: center;
+    margin: 12px 0;
+    user-select: all;
+    cursor: copy;
+}

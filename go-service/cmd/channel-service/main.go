@@ -23,7 +23,6 @@ func main() {
 	if err := db.InitPostgres(ctx); err != nil {
 		log.Fatalf("postgres init: %v", err)
 	}
-	defer db.Pool.Close()
 	log.Println("Channel Service: PostgreSQL connected")
 
 	// Redis
@@ -52,7 +51,18 @@ func main() {
 		chanGroup.POST("", channels.CreateChannelHandler)
 		chanGroup.POST("/join", channels.JoinChannelHandler)
 		chanGroup.GET("", channels.ListUserChannelsHandler)
+		chanGroup.GET("/:id", channels.GetChannelInfoHandler)
+		chanGroup.PUT("/:id", channels.RenameChannelHandler)
 		chanGroup.GET("/:id/messages", channels.GetMessagesHandler)
+		chanGroup.GET("/:id/members", channels.GetChannelMembersHandler)
+		chanGroup.POST("/:id/members", channels.AddMemberHandler) // owner adds member directly
+	}
+
+	// Member management (approve/reject/kick)
+	memberGroup := r.Group("/channels/members", middleware.Auth())
+	{
+		memberGroup.POST("/:membershipId/approve", channels.ApproveMemberHandler)
+		memberGroup.DELETE("/:membershipId", channels.RemoveMemberHandler)
 	}
 
 	// WebSocket
