@@ -2,28 +2,28 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/polyglot-chat/go-service/internal/auth"
 	"github.com/polyglot-chat/go-service/pkg/db"
+	"github.com/polyglot-chat/go-service/pkg/logs"
 	"github.com/polyglot-chat/go-service/pkg/middleware"
 )
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Println("no .env file, reading from environment")
+		logs.Info("auth service: no .env file, reading from environment")
 	}
 
 	ctx := context.Background()
 
 	// PostgreSQL
 	if err := db.InitPostgres(ctx); err != nil {
-		log.Fatalf("postgres init: %v", err)
+		panic(err)
 	}
-	log.Println("Auth Service: PostgreSQL connected")
+	logs.Info("auth service: PostgreSQL connected")
 
 	r := gin.Default()
 
@@ -54,8 +54,8 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	log.Printf("Auth Service running on :%s", port)
+	logs.Info("auth service: starting server", "port", port)
 	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("server: %v", err)
+		panic(err)
 	}
 }

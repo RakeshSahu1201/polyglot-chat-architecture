@@ -21,6 +21,7 @@ type Channel struct {
 	Type       string `json:"type"`
 	InviteCode string `json:"invite_code"`
 	OwnerID    string `json:"owner_id"`
+	Archived   bool   `json:"archived"`
 }
 
 type Message struct {
@@ -55,6 +56,7 @@ func entToChannel(c *ent.Channel) Channel {
 		Type:       c.Type,
 		InviteCode: c.InviteCode,
 		OwnerID:    c.OwnerID.String(),
+		Archived:   c.ArchivedAt != nil,
 	}
 }
 
@@ -115,7 +117,10 @@ func CreateChannel(ctx context.Context, name, chType, inviteCode, ownerID string
 func GetChannelByInviteCode(ctx context.Context, code string) (*Channel, error) {
 	ch, err := db.Client.Channel.
 		Query().
-		Where(channel.InviteCode(code)).
+		Where(
+			channel.InviteCode(code),
+			channel.ArchivedAtIsNil(),
+		).
 		Only(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GetChannelByInviteCode: %w", err)
@@ -144,6 +149,20 @@ func JoinChannel(ctx context.Context, channelID, userID, status string) error {
 	if err != nil {
 		return fmt.Errorf("JoinChannel parse channelID: %w", err)
 	}
+	active, err := db.Client.Channel.
+		Query().
+		Where(
+			channel.ID(chID),
+			channel.ArchivedAtIsNil(),
+		).
+		Exist(ctx)
+	if err != nil {
+		return fmt.Errorf("JoinChannel channel check: %w", err)
+	}
+	if !active {
+		return fmt.Errorf("JoinChannel: channel is archived")
+	}
+
 	uID, err := uuid.Parse(userID)
 	if err != nil {
 		return fmt.Errorf("JoinChannel parse userID: %w", err)
@@ -194,24 +213,47 @@ func IsMember(ctx context.Context, channelID, userID string) (bool, error) {
 }
 
 // SaveMessage persists a new channel message and returns the saved record.
-func SaveMessage(ctx context.Context, channelID, userID, userName, body string) (*Message, error) {
+func SaveMessage(ctx context.Context, channelID, userID, userName, body, mediaURL string) (*Message, error) {
 	chID, err := uuid.Parse(channelID)
 	if err != nil {
 		return nil, fmt.Errorf("SaveMessage parse channelID: %w", err)
 	}
+
+	active, err := db.Client.Channel.
+		Query().
+		Where(
+			channel.ID(chID),
+			channel.ArchivedAtIsNil(),
+		).
+		Exist(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("SaveMessage channel check: %w", err)
+	}
+	if !active {
+		return nil, fmt.Errorf("SaveMessage: channel is archived")
+	}
+
 	uID, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, fmt.Errorf("SaveMessage parse userID: %w", err)
 	}
-	m, err := db.Client.ChannelMessage.
+	builder := db.Client.ChannelMessage.
 		Create().
 		SetChannelID(chID).
 		SetUserID(uID).
 		SetUserName(userName).
-		SetBody(body).
-		Save(ctx)
+		SetBody(body)
+	if mediaURL != "" {
+		builder.SetMediaURL(mediaURL)
+	}
+	m, err := builder.Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("SaveMessage: %w", err)
+	}
+	if err := db.Client.Channel.UpdateOneID(chID).
+		SetLastActivityAt(time.Now()).
+		Exec(ctx); err != nil {
+		return nil, fmt.Errorf("SaveMessage update channel activity: %w", err)
 	}
 	result := entToMessage(m)
 	return &result, nil
@@ -252,6 +294,7 @@ func GetUserChannels(ctx context.Context, userID string) ([]Channel, error) {
 		Where(
 			channelmember.UserID(uID),
 			channelmember.StatusEQ(channelmember.StatusApproved),
+			channelmember.HasChannelWith(channel.ArchivedAtIsNil()),
 		).
 		WithChannel().
 		All(ctx)
@@ -266,6 +309,26 @@ func GetUserChannels(ctx context.Context, userID string) ([]Channel, error) {
 		}
 	}
 	return channels, nil
+}
+
+func IsChannelArchived(ctx context.Context, channelID string) (bool, error) {
+	chID, err := uuid.Parse(channelID)
+	if err != nil {
+		return false, fmt.Errorf("IsChannelArchived parse channelID: %w", err)
+	}
+
+	archived, err := db.Client.Channel.
+		Query().
+		Where(
+			channel.ID(chID),
+			channel.ArchivedAtNotNil(),
+		).
+		Exist(ctx)
+	if err != nil {
+		return false, fmt.Errorf("IsChannelArchived: %w", err)
+	}
+
+	return archived, nil
 }
 
 // GetChannelWithMemberCount returns channel metadata + total APPROVED member count.

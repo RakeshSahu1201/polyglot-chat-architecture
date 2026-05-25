@@ -16,8 +16,8 @@ A real-time chat application built with a **Node.js** core service and a **Go** 
 ┌──────────────────────▼───────────────────────────────────┐
 │  Node.js / Express + Socket.IO   http://localhost:5000   │
 │  - REST: /user (register, login) → issues JWT            │
-│  - REST: /conversation (history, media upload)           │
-│  - Socket: login_me, send_message, send_media            │
+│  - REST: /chat + /media                                  │
+│  - Socket: login_me, send_message                        │
 │  - Online presence via Redis (online:<userId>)           │
 └──────────┬────────────────────────────┬──────────────────┘
            │                            │
@@ -111,7 +111,11 @@ npm run dev
 | `REDIS_URL` | Redis connection URL | `redis://127.0.0.1:6379` |
 | `JWT_SECRET` | Signing secret (shared with Go) | *(required)* |
 | `CORS_ORIGIN` | Allowed frontend origin | `http://localhost:5173` |
-| `SERVER_BASE_URL` | Public URL for media links | `http://localhost:5000` |
+| `IPFS_API_URL` | IPFS node API endpoint | `http://127.0.0.1:5001` |
+| `IPFS_GATEWAY_BASE_URL` | Public IPFS gateway base | `https://ipfs.io/ipfs` |
+| `PINATA_JWT` | Pinata auth token | empty |
+| `MEDIA_MAX_FILE_SIZE_BYTES` | Upload limit | `10485760` |
+| `IPFS_CHUNK_SIZE_BYTES` | Upload chunk size | `262144` |
 
 ### `frontend/.env`
 
@@ -139,8 +143,8 @@ polyglot-chat-architecture/
 │   │   └── Conversation.js
 │   ├── router/
 │   │   ├── User.js          # /user/register-user, /user/login-user
-│   │   └── Conversation.js  # /conversation (protected)
-│   ├── media/               # uploaded files (gitignored)
+│   │   └── Conversation.js  # chat message persistence
+│   ├── media/               # shared IPFS upload module
 │   ├── server.js
 │   ├── .env                 # gitignored
 │   └── .env.example
@@ -166,13 +170,13 @@ polyglot-chat-architecture/
 | `POST` | `/user/register-user` | `{ name, password }` | `{ user, token }` |
 | `POST` | `/user/login-user` | `{ name, password }` | `{ user, token }` |
 
-### Conversations (Bearer token required)
+### Chat + Media (Bearer token required)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/conversation?from=<id>&to=<id>` | Fetch DM history |
-| `POST` | `/conversation/from-to` | Fetch DM history (legacy) |
-| `POST` | `/conversation/media` | Upload media file |
+| `GET` | `/chat/messages/direct?userId=<id>` | Fetch DM history |
+| `POST` | `/media/upload` | Upload avatar or image to IPFS and persist CID metadata |
+| `POST` | `/channels/:id/media` | Upload channel media through the shared media service |
 
 ---
 
@@ -183,8 +187,7 @@ polyglot-chat-architecture/
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `login_me` | `{ logged_user }` | Register online presence in Redis |
-| `send_message` | `{ message: { from, to, body } }` | Send a DM |
-| `send_media` | `{ media_message }` | Notify peers of uploaded media |
+| `send_message` | `{ message: { from, to, body, media_url } }` | Send a DM or DM media message |
 
 ### Server → Client
 

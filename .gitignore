@@ -49,6 +49,8 @@ go/pkg/
 *.njsproj
 *.sln
 *.sw?
+.agents
+.codex
 
 # ── Vite cache ────────────────────────────────────────────
 frontend/.vite/

@@ -34,6 +34,16 @@ func WsHandler(c *gin.Context) {
 	}
 
 	// Verify membership
+	archived, err := IsChannelArchived(c.Request.Context(), channelID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel"})
+		return
+	}
+	if archived {
+		c.JSON(http.StatusGone, gin.H{"error": "channel has been archived"})
+		return
+	}
+
 	ok, err := IsMember(c.Request.Context(), channelID, claims.ID)
 	if err != nil || !ok {
 		c.JSON(http.StatusForbidden, gin.H{"error": "not a member of this channel"})
@@ -60,6 +70,7 @@ func WsHandler(c *gin.Context) {
 	hub.mu.Unlock()
 
 	hub.register <- client
+	trackChannelPresence(c.Request.Context(), channelID, claims.ID, true)
 
 	go client.writePump()
 	client.readPump(conn, channelID) // blocks until connection closes

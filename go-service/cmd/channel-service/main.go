@@ -50,6 +50,7 @@ func main() {
 	{
 		chanGroup.POST("", channels.CreateChannelHandler)
 		chanGroup.POST("/join", channels.JoinChannelHandler)
+		chanGroup.POST("/:id/media", channels.UploadMediaHandler)
 		chanGroup.GET("", channels.ListUserChannelsHandler)
 		chanGroup.GET("/:id", channels.GetChannelInfoHandler)
 		chanGroup.PUT("/:id", channels.RenameChannelHandler)

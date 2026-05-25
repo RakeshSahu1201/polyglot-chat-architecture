@@ -1,8 +1,33 @@
-import React, { useState } from "react";
-const MediaComponent = ({ mediaUrl }) => {
+import React, { useMemo, useState } from "react";
+import axios from "axios";
+import { resolveMediaSource } from "../../utils/media";
+
+const MediaComponent = ({ media }) => {
   const [loading, setLoading] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [play, setPlay] = useState(false);
+  const { url: mediaUrl, originalName } = useMemo(
+    () => resolveMediaSource(media),
+    [media]
+  );
+
+  const derivedFilename = useMemo(() => {
+    if (originalName) {
+      return originalName;
+    }
+
+    try {
+      const parsed = new URL(mediaUrl);
+      const fromQuery = parsed.searchParams.get("filename");
+      if (fromQuery) {
+        return fromQuery;
+      }
+      const pathname = parsed.pathname.split("/").filter(Boolean);
+      return pathname[pathname.length - 1] || "download";
+    } catch {
+      return mediaUrl.substring(mediaUrl.lastIndexOf("/") + 1) || "download";
+    }
+  }, [mediaUrl, originalName]);
 
   const handleDownload = async () => {
     try {
@@ -16,9 +41,7 @@ const MediaComponent = ({ mediaUrl }) => {
       link.href = url;
 
       // Extract the filename from the URL or use a generic name if not present
-      const filename =
-        mediaUrl.substring(mediaUrl.lastIndexOf("/") + 1) || "download";
-      link.setAttribute("download", filename);
+      link.setAttribute("download", derivedFilename);
 
       document.body.appendChild(link);
       link.click();
@@ -30,7 +53,7 @@ const MediaComponent = ({ mediaUrl }) => {
   };
 
   const mediaType = (() => {
-    const extension = mediaUrl.split(".").pop().toLowerCase();
+    const extension = derivedFilename.split(".").pop().toLowerCase();
     if (["jpg", "jpeg", "png", "gif"].includes(extension)) {
       return "image";
     } else if (["txt", "pdf", "doc"].includes(extension)) {
@@ -54,12 +77,13 @@ const MediaComponent = ({ mediaUrl }) => {
         <img
           src={mediaUrl}
           alt="Media"
+          loading="lazy"
           style={{ maxWidth: "100%", height: "auto" }}
         />
       )}
       {mediaType === "text" && (
         <div>
-          {mediaUrl.substring(mediaUrl.lastIndexOf("/") + 1)}
+          {derivedFilename}
           {hovered && (
             <button
               onClick={handleDownload}

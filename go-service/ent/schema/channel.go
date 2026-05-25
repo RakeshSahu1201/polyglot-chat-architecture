@@ -27,6 +27,11 @@ func (Channel) Fields() []ent.Field {
 			Unique().
 			NotEmpty(),
 		field.UUID("owner_id", uuid.UUID{}),
+		field.Time("last_activity_at").
+			Default(time.Now),
+		field.Time("archived_at").
+			Optional().
+			Nillable(),
 		field.Time("created_at").
 			Default(time.Now).
 			Immutable(),

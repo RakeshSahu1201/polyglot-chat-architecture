@@ -1,11 +1,11 @@
 package auth
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
+	"github.com/polyglot-chat/go-service/ent"
+	"github.com/polyglot-chat/go-service/pkg/logs"
 )
 
 type registerRequest struct {
@@ -18,33 +18,47 @@ type loginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+func clientError(c *gin.Context, status int, message string) {
+	c.JSON(status, gin.H{"error": message})
+}
+
 // POST /auth/register
 func Register(c *gin.Context) {
 	var req registerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		logs.Info("auth register: invalid request", "ip", c.ClientIP(), "error", err)
+		clientError(c, http.StatusBadRequest, "Please provide a valid username and password")
 		return
 	}
 
 	hashed, err := HashPassword(req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not hash password"})
+		logs.Info("auth register: hash password failed", "username", req.Name, "ip", c.ClientIP(), "error", err)
+		clientError(c, http.StatusInternalServerError, "Unable to create account right now")
 		return
 	}
 
 	user, err := CreateUser(c.Request.Context(), req.Name, hashed)
 	if err != nil {
-		// unique name violation
-		c.JSON(http.StatusConflict, gin.H{"error": "username already taken"})
+		if ent.IsConstraintError(err) {
+			logs.Info("auth register: username already taken", "username", req.Name, "ip", c.ClientIP())
+			clientError(c, http.StatusConflict, "That username is already taken")
+			return
+		}
+
+		logs.Info("auth register: create user failed", "username", req.Name, "ip", c.ClientIP(), "error", err)
+		clientError(c, http.StatusInternalServerError, "Unable to create account right now")
 		return
 	}
 
 	token, err := IssueJWT(user.ID, user.Name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not issue token"})
+		logs.Info("auth register: issue token failed", "user_id", user.ID, "username", user.Name, "ip", c.ClientIP(), "error", err)
+		clientError(c, http.StatusInternalServerError, "Account created, but login could not be completed")
 		return
 	}
 
+	logs.Info("auth register: success", "user_id", user.ID, "username", user.Name, "ip", c.ClientIP())
 	c.JSON(http.StatusCreated, gin.H{
 		"user":  gin.H{"_id": user.ID, "name": user.Name},
 		"token": token,
@@ -55,31 +69,38 @@ func Register(c *gin.Context) {
 func Login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		logs.Info("auth login: invalid request", "ip", c.ClientIP(), "error", err)
+		clientError(c, http.StatusBadRequest, "Please enter both username and password")
 		return
 	}
 
 	user, err := GetUserByName(c.Request.Context(), req.Name)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		if ent.IsNotFound(err) {
+			logs.Info("auth login: unknown username", "username", req.Name, "ip", c.ClientIP())
+			clientError(c, http.StatusUnauthorized, "Invalid username or password")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+
+		logs.Info("auth login: lookup failed", "username", req.Name, "ip", c.ClientIP(), "error", err)
+		clientError(c, http.StatusInternalServerError, "Unable to log in right now")
 		return
 	}
 
 	if !CheckPassword(user.Password, req.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid password"})
+		logs.Info("auth login: invalid password", "user_id", user.ID, "username", user.Name, "ip", c.ClientIP())
+		clientError(c, http.StatusUnauthorized, "Invalid username or password")
 		return
 	}
 
 	token, err := IssueJWT(user.ID, user.Name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not issue token"})
+		logs.Info("auth login: issue token failed", "user_id", user.ID, "username", user.Name, "ip", c.ClientIP(), "error", err)
+		clientError(c, http.StatusInternalServerError, "Login succeeded, but session creation failed")
 		return
 	}
 
+	logs.Info("auth login: success", "user_id", user.ID, "username", user.Name, "ip", c.ClientIP())
 	c.JSON(http.StatusOK, gin.H{
 		"user":  gin.H{"_id": user.ID, "name": user.Name},
 		"token": token,
@@ -92,9 +113,18 @@ func Me(c *gin.Context) {
 
 	user, err := GetUserByID(c.Request.Context(), userID.(string))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		if ent.IsNotFound(err) {
+			logs.Info("auth me: user not found", "user_id", userID.(string), "ip", c.ClientIP())
+			clientError(c, http.StatusNotFound, "User not found")
+			return
+		}
+
+		logs.Info("auth me: lookup failed", "user_id", userID.(string), "ip", c.ClientIP(), "error", err)
+		clientError(c, http.StatusInternalServerError, "Unable to load your profile right now")
 		return
 	}
+
+	logs.Info("auth me: success", "user_id", user.ID, "ip", c.ClientIP())
 	c.JSON(http.StatusOK, gin.H{"user": gin.H{"_id": user.ID, "name": user.Name}})
 }
 
@@ -102,7 +132,8 @@ func Me(c *gin.Context) {
 func GetUsersHandler(c *gin.Context) {
 	users, err := GetUsers(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		logs.Info("auth users: list failed", "ip", c.ClientIP(), "error", err)
+		clientError(c, http.StatusInternalServerError, "Unable to load users right now")
 		return
 	}
 
@@ -112,5 +143,6 @@ func GetUsersHandler(c *gin.Context) {
 		response = append(response, gin.H{"_id": u.ID, "name": u.Name})
 	}
 
+	logs.Info("auth users: success", "count", len(response), "ip", c.ClientIP())
 	c.JSON(http.StatusOK, gin.H{"data": response})
 }

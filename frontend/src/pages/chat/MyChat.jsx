@@ -10,13 +10,31 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { resolveMediaSource } from "../../utils/media";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL;
-const CHANNEL_URL = import.meta.env.VITE_CHANNEL_URL || 'http://localhost:8081';
-const WS_URL = CHANNEL_URL.replace(/^http/, 'ws');
+const CHANNEL_URL = import.meta.env.VITE_CHANNEL_URL || 'http://localhost/api/channels';
+const WS_URL = (CHANNEL_URL || window.location.origin + '/api/channels').replace(/^http/, 'ws');
+const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost/api/auth';
 
-// Single Socket.IO instance for DMs
-const socket = io(SERVER_URL);
+// Socket.IO connects to the page origin — nginx routes /socket.io/ to the Node.js chat service.
+// Do NOT use SERVER_URL as the io() target (that's the REST base path, not the socket origin).
+const socket = io(window.location.origin, {
+  transports: ['websocket', 'polling'],
+});
+
+const appendUniqueMessage = (messages, nextMessage) => {
+  const nextId = nextMessage?._id || nextMessage?.id;
+  if (!nextId) {
+    return [...messages, nextMessage];
+  }
+
+  if (messages.some((message) => (message._id || message.id) === nextId)) {
+    return messages;
+  }
+
+  return [...messages, nextMessage];
+};
 
 const MyChat = () => {
   const location = useLocation();
@@ -39,6 +57,11 @@ const MyChat = () => {
 
   // Ref to hold the active WebSocket for the current channel
   const wsRef = useRef(null);
+  const lastUsersRefreshRef = useRef(0);
+  // Keep a ref to `to` so the socket message handler always sees the latest value
+  // without needing to re-bind the listener on every DM switch.
+  const toRef = useRef(to);
+  useEffect(() => { toRef.current = to; }, [to]);
 
   // Use a ref so event listeners always have a fresh reference to conversation
   // without needing to re-subscribe every time it changes
@@ -59,7 +82,12 @@ const MyChat = () => {
     if (!logged_user) return;
 
     const registerPresence = () => {
-      socket.emit("login_me", { logged_user });
+      socket.emit("login_me", {
+        user: {
+          id: logged_user._id || logged_user.id,
+          name: logged_user.name,
+        },
+      });
     };
 
     // If already connected, emit immediately
@@ -130,25 +158,34 @@ const MyChat = () => {
     }
   }, [activeChannel, logged_user, token]);
 
-  // Read ALL registered users from Go Auth Service on mount
-  useEffect(() => {
-    // We don't need a token for /users, but it's good practice to send it if available
+  const fetchAllUsers = async () => {
     if (!token) return;
 
-    // Fetch channels
+    try {
+      const res = await axios.get(`${AUTH_URL}/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAllUsers(res.data.data || []);
+    } catch (err) {
+      console.error("fetch all users error:", err.response?.data?.error || err.message);
+    }
+  };
+
+  // Read channels + users on mount
+  useEffect(() => {
+    if (!token) return;
+
     axios.get(`${CHANNEL_URL}/channels`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(res => setChannels(res.data.channels || []))
-      .catch(err => console.error("fetch channels error:", err));
+      .catch(err => console.error("fetch channels error:", err.response?.data?.error || err.message));
 
-    // Fetch all users
-    const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:8080';
-    axios.get(`${AUTH_URL}/users`, {
-      headers: { Authorization: `Bearer ${token}` }
-    }).then(res => {
-      // Allow chatting with yourself by not filtering out logged_user
-      setAllUsers(res.data.data || []);
-    }).catch(err => console.error("fetch all users error:", err));
+    fetchAllUsers();
+
+    // Periodically refresh the user list so newly registered users appear
+    // without waiting for a socket presence event.
+    const userPollInterval = setInterval(fetchAllUsers, 30_000);
+    return () => clearInterval(userPollInterval);
   }, [token]);
 
   // Compute the final users array by merging allUsers with onlineUserIds
@@ -168,12 +205,25 @@ const MyChat = () => {
       // Store just the IDs of who is online
       const ids = new Set(connected_users.map(u => u._id || u.id));
       setOnlineUserIds(ids);
+
+      const now = Date.now();
+      if (now - lastUsersRefreshRef.current > 5000) {
+        lastUsersRefreshRef.current = now;
+        fetchAllUsers();
+      }
     };
 
     const handleNewMessage = ({ new_message }) => {
-      // Only append DM if we are actively looking at DMs (not in a channel)
-      if (!activeChannel) {
-        setConversation((prev) => [...prev, new_message]);
+      // Use ref so we always have the latest selected DM user ID
+      // without re-binding this listener on every switch.
+      const selectedDmUserId = toRef.current;
+      const isRelevantDm =
+        selectedDmUserId &&
+        ((new_message.from === logged_user?._id && new_message.to === selectedDmUserId) ||
+          (new_message.from === selectedDmUserId && new_message.to === logged_user?._id));
+
+      if (!activeChannel && isRelevantDm) {
+        setConversation((prev) => appendUniqueMessage(prev, new_message));
       }
     };
 
@@ -194,24 +244,25 @@ const MyChat = () => {
       socket.off("message_sent", handleNewMessage);
       socket.off("channel_message", handleChannelMessage);
     };
-  }, [activeChannel]); // re-bind safely if focus changes
+  }, [activeChannel, to, logged_user, token]); // re-bind safely if focus changes
 
   // ─── REST API ────────────────────────────────────────────────────────────
 
   const get_conversation = async ({ from, to }) => {
     try {
-      const result = await axios.post(
-        `${SERVER_URL}/conversation/from-to`,
-        { from, to },
-        { headers: { Authorization: `Bearer ${token}` } }
+      const result = await axios.get(
+        `${SERVER_URL}/chat/messages/direct`,
+        {
+          params: { userId: to },
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
-      if (result.data.error) {
-        alert(result.data.error);
-        return;
-      }
-      setConversation(result.data);
+      setConversation(result.data?.data || []);
     } catch (error) {
-      console.error("get_conversation error:", error.message);
+      console.error(
+        "get_conversation error:",
+        error.response?.data?.error || error.message
+      );
     }
   };
 
@@ -221,25 +272,68 @@ const MyChat = () => {
 
     try {
       const media = new FormData();
-      media.append("from", logged_user._id);
-      media.append("to", to);
       media.append("media", file);
+      media.append("kind", activeChannel ? "channel-message" : "message");
 
-      const result = await axios.post(`${SERVER_URL}/conversation/media`, media, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      if (activeChannel) {
+        const result = await axios.post(
+          `${CHANNEL_URL}/channels/${activeChannel.id}/media`,
+          media,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-      if (result.data.error) {
-        alert(result.data.error);
-        return;
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          const normalizedMedia = resolveMediaSource(result.data);
+          wsRef.current.send(
+            JSON.stringify({
+              body: "",
+              cid: result.data.cid || "",
+              media_url: normalizedMedia.url,
+            })
+          );
+        } else {
+          alert("WebSocket not connected");
+        }
+      } else {
+        media.append("from", logged_user._id);
+        media.append("to", to);
+
+        const result = await axios.post(`${SERVER_URL}/media/upload`, media, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        socket.emit(
+          "send_message",
+          {
+            message: {
+              from: logged_user._id,
+              to,
+              body: "",
+              cid: result.data.cid || "",
+              media_url: resolveMediaSource(result.data).url,
+            },
+          },
+          ({ error }) => {
+            if (error) {
+              console.error("send_message error:", error);
+              alert(error);
+            }
+          }
+        );
       }
-      socket.emit("send_media", { media_message: result.data });
-      alert("media sent");
     } catch (error) {
-      console.error("handleFileUpload error:", error.message);
+      console.error(
+        "handleFileUpload error:",
+        error.response?.data?.error || error.message
+      );
     }
   };
 
@@ -263,6 +357,10 @@ const MyChat = () => {
         if (error) {
           console.error("send_message error:", error);
           alert(error);
+          return;
+        }
+        if (data) {
+          setConversation((prev) => appendUniqueMessage(prev, data));
         }
         setMessage("");
       });

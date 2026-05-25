@@ -2,14 +2,29 @@ package channels
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/polyglot-chat/go-service/ent"
+	mediaapi "github.com/polyglot-chat/go-service/pkg/media"
 )
 
 type createChannelRequest struct {
 	Name string `json:"name" binding:"required,min=2"`
 	Type string `json:"type" binding:"required,oneof=open private"`
+}
+
+func ensureActiveChannel(c *gin.Context, channelID string) bool {
+	archived, err := IsChannelArchived(c.Request.Context(), channelID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return false
+	}
+	if archived {
+		c.JSON(http.StatusGone, gin.H{"error": "channel has been archived"})
+		return false
+	}
+	return true
 }
 
 // POST /channels
@@ -64,6 +79,10 @@ func JoinChannelHandler(c *gin.Context) {
 	}
 
 	if err := JoinChannel(c.Request.Context(), ch.ID, userID.(string), status); err != nil {
+		if strings.Contains(err.Error(), "archived") {
+			c.JSON(http.StatusGone, gin.H{"error": "channel has been archived"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -79,6 +98,10 @@ func GetMessagesHandler(c *gin.Context) {
 	channelID := c.Param("id")
 	userID, _ := c.Get("userID")
 
+	if !ensureActiveChannel(c, channelID) {
+		return
+	}
+
 	ok, err := IsMember(c.Request.Context(), channelID, userID.(string))
 	if err != nil || !ok {
 		c.JSON(http.StatusForbidden, gin.H{"error": "not a member of this channel"})
@@ -92,6 +115,51 @@ func GetMessagesHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"messages": msgs})
+}
+
+// POST /channels/:id/media
+func UploadMediaHandler(c *gin.Context) {
+	channelID := c.Param("id")
+	userID, _ := c.Get("userID")
+
+	if !ensureActiveChannel(c, channelID) {
+		return
+	}
+
+	ok, err := IsMember(c.Request.Context(), channelID, userID.(string))
+	if err != nil || !ok {
+		c.JSON(http.StatusForbidden, gin.H{"error": "not a member of this channel"})
+		return
+	}
+
+	file, err := c.FormFile("media")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "media file is required"})
+		return
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not open media file"})
+		return
+	}
+	defer src.Close()
+
+	asset, err := mediaapi.Upload(c.Request.Context(), mediaapi.UploadParams{
+		AuthHeader: c.GetHeader("Authorization"),
+		FileName:   file.Filename,
+		Reader:     src,
+		Fields: map[string]string{
+			"kind":      "channel-message",
+			"channelId": channelID,
+		},
+	})
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, asset)
 }
 
 // GET /channels  — list channels the current user has joined
@@ -112,6 +180,10 @@ func ListUserChannelsHandler(c *gin.Context) {
 func AddMemberHandler(c *gin.Context) {
 	channelID := c.Param("id")
 	requesterID, _ := c.Get("userID")
+
+	if !ensureActiveChannel(c, channelID) {
+		return
+	}
 
 	var req struct {
 		UserID string `json:"user_id" binding:"required"`
@@ -150,6 +222,10 @@ func GetChannelInfoHandler(c *gin.Context) {
 	channelID := c.Param("id")
 	userID, _ := c.Get("userID")
 
+	if !ensureActiveChannel(c, channelID) {
+		return
+	}
+
 	// Check membership
 	ok, err := IsMember(c.Request.Context(), channelID, userID.(string))
 	if err != nil || !ok {
@@ -174,6 +250,10 @@ func GetChannelInfoHandler(c *gin.Context) {
 func RenameChannelHandler(c *gin.Context) {
 	channelID := c.Param("id")
 	owned, _ := c.Get("userID")
+
+	if !ensureActiveChannel(c, channelID) {
+		return
+	}
 
 	var req struct {
 		Name string `json:"name" binding:"required,min=2"`
@@ -206,6 +286,10 @@ func RenameChannelHandler(c *gin.Context) {
 func GetChannelMembersHandler(c *gin.Context) {
 	channelID := c.Param("id")
 	userID, _ := c.Get("userID")
+
+	if !ensureActiveChannel(c, channelID) {
+		return
+	}
 
 	ok, err := IsMember(c.Request.Context(), channelID, userID.(string))
 	if err != nil || !ok {
@@ -240,6 +324,10 @@ func ApproveMemberHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "channel not found"})
 		return
 	}
+	if ch.Archived {
+		c.JSON(http.StatusGone, gin.H{"error": "channel has been archived"})
+		return
+	}
 
 	if ch.OwnerID != requesterID.(string) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "only the owner can approve members"})
@@ -267,6 +355,10 @@ func RemoveMemberHandler(c *gin.Context) {
 	ch, err := GetChannelByID(c.Request.Context(), member.ChannelID.String())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "channel not found"})
+		return
+	}
+	if ch.Archived {
+		c.JSON(http.StatusGone, gin.H{"error": "channel has been archived"})
 		return
 	}
 

@@ -51,6 +51,7 @@ func (c *Client) writePump() {
 // readPump reads incoming messages from the WebSocket and dispatches them.
 func (c *Client) readPump(conn *websocket.Conn, channelID string) {
 	defer func() {
+		trackChannelPresence(context.Background(), channelID, c.userID, false)
 		c.hub.unregister <- c
 		conn.Close()
 	}()
@@ -63,7 +64,8 @@ func (c *Client) readPump(conn *websocket.Conn, channelID string) {
 	})
 
 	type incomingMsg struct {
-		Body string `json:"body"`
+		Body     string `json:"body"`
+		MediaURL string `json:"media_url"`
 	}
 
 	for {
@@ -75,12 +77,19 @@ func (c *Client) readPump(conn *websocket.Conn, channelID string) {
 			break
 		}
 
-		if incoming.Body == "" {
+		if incoming.Body == "" && incoming.MediaURL == "" {
 			continue
 		}
 
 		// Save to Postgres
-		msg, err := SaveMessage(context.Background(), channelID, c.userID, c.userName, incoming.Body)
+		msg, err := SaveMessage(
+			context.Background(),
+			channelID,
+			c.userID,
+			c.userName,
+			incoming.Body,
+			incoming.MediaURL,
+		)
 		if err != nil {
 			log.Printf("SaveMessage error: %v", err)
 			continue

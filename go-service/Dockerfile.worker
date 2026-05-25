@@ -1,0 +1,26 @@
+# Build stage - force builder to run natively on host CPU (no QEMU)
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN go mod tidy
+
+RUN go generate ./ent/...
+
+# Capture target platform from Docker for native cross-compilation
+ARG TARGETOS
+ARG TARGETARCH
+
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /worker-service ./cmd/worker-service/main.go
+
+FROM alpine:latest
+WORKDIR /app
+
+COPY --from=builder /worker-service /app/worker-service
+
+CMD ["/app/worker-service"]

@@ -1,0 +1,242 @@
+version: '3.8'
+
+# Pre-Production Docker Compose
+# Uses managed services:
+# - Supabase (PostgreSQL)
+# - MongoDB Atlas (MongoDB)
+# - Pinata (IPFS)
+# - Local Redis (for caching/pub-sub)
+# - Local NGINX Gateway
+
+services:
+  # NGINX API Gateway
+  api-gateway:
+    image: nginx:alpine
+    container_name: chat-api-gateway-preprod
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      auth-service:
+        condition: service_started
+      channel-service:
+        condition: service_started
+      nodejs:
+        condition: service_started
+      frontend:
+        condition: service_started
+    networks:
+      - chat-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    environment:
+      - TZ=UTC
+
+  # Local Redis for caching & pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: chat-redis-preprod
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - chat-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Go Auth Service
+  auth-service:
+    build:
+      context: ./go-service
+      dockerfile: Dockerfile.auth
+    container_name: chat-auth-preprod
+    environment:
+      # Supabase PostgreSQL (use your Supabase credentials)
+      - PG_HOST=${SUPABASE_HOST}
+      - PG_PORT=${SUPABASE_PORT:-5432}
+      - PG_USER=${SUPABASE_USER}
+      - PG_PASSWORD=${SUPABASE_PASSWORD}
+      - PG_DB=${SUPABASE_DB}
+      - PG_SSLMODE=require
+      
+      # Service Config
+      - AUTH_PORT=8080
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
+      - NODE_ENV=preprod
+    networks:
+      - chat-net
+    restart: unless-stopped
+    expose:
+      - "8080"
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Go Channel Service
+  channel-service:
+    build:
+      context: ./go-service
+      dockerfile: Dockerfile.channel
+    container_name: chat-channel-preprod
+    environment:
+      # Supabase PostgreSQL
+      - PG_HOST=${SUPABASE_HOST}
+      - PG_PORT=${SUPABASE_PORT:-5432}
+      - PG_USER=${SUPABASE_USER}
+      - PG_PASSWORD=${SUPABASE_PASSWORD}
+      - PG_DB=${SUPABASE_DB}
+      - PG_SSLMODE=require
+      
+      # Service Config
+      - CHANNEL_PORT=8081
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
+      - NODE_ENV=preprod
+      
+      # Redis
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Media Service
+      - MEDIA_SERVICE_URL=http://nodejs:5000
+      
+      # Pinata IPFS
+      - IPFS_API_URL=${PINATA_API_URL}
+      - PINATA_JWT=${PINATA_JWT}
+    networks:
+      - chat-net
+    restart: unless-stopped
+    expose:
+      - "8081"
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Go Worker Service
+  worker-service:
+    build:
+      context: ./go-service
+      dockerfile: Dockerfile.worker
+    container_name: chat-worker-preprod
+    environment:
+      # Supabase PostgreSQL
+      - PG_HOST=${SUPABASE_HOST}
+      - PG_PORT=${SUPABASE_PORT:-5432}
+      - PG_USER=${SUPABASE_USER}
+      - PG_PASSWORD=${SUPABASE_PASSWORD}
+      - PG_DB=${SUPABASE_DB}
+      - PG_SSLMODE=require
+      
+      # MongoDB Atlas
+      - MONGO_URI=${MONGODB_ATLAS_URI}
+      - MONGO_DB=chat
+      
+      # Worker Config
+      - WORKER_MESSAGE_TTL_HOURS=24
+      - WORKER_MESSAGE_SWEEP_MINUTES=10
+      - WORKER_CHANNEL_INACTIVE_HOURS=720
+      - WORKER_CHANNEL_SWEEP_MINUTES=60
+      - WORKER_MEDIA_SWEEP_MINUTES=30
+      - WORKER_MEDIA_GRACE_HOURS=1
+      - NODE_ENV=preprod
+      
+      # Pinata IPFS
+      - IPFS_API_URL=${PINATA_API_URL}
+      - PINATA_JWT=${PINATA_JWT}
+    networks:
+      - chat-net
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # Node.js Backend
+  nodejs:
+    build:
+      context: ./backend
+    container_name: chat-nodejs-preprod
+    environment:
+      # Service
+      - PORT=5000
+      - NODE_ENV=preprod
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
+      - SERVER_BASE_URL=${SERVER_BASE_URL:-http://localhost}
+      
+      # Supabase PostgreSQL
+      - PG_HOST=${SUPABASE_HOST}
+      - PG_PORT=${SUPABASE_PORT:-5432}
+      - PG_USER=${SUPABASE_USER}
+      - PG_PASSWORD=${SUPABASE_PASSWORD}
+      - PG_DB=${SUPABASE_DB}
+      - PG_SSLMODE=require
+      
+      # MongoDB Atlas
+      - MONGO_URI=${MONGODB_ATLAS_URI}
+      
+      # Redis (local)
+      - REDIS_URL=redis://redis:6379/0
+      
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      
+      # Pinata IPFS
+      - IPFS_API_URL=${PINATA_API_URL}
+      - IPFS_GATEWAY_BASE_URL=${IPFS_GATEWAY_BASE_URL:-http://localhost/ipfs}
+      - PINATA_JWT=${PINATA_JWT}
+    networks:
+      - chat-net
+    restart: unless-stopped
+    expose:
+      - "5000"
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_AUTH_URL: ${VITE_AUTH_URL:-http://localhost/api/auth}
+        VITE_CHANNEL_URL: ${VITE_CHANNEL_URL:-http://localhost/api/channels}
+        VITE_SERVER_URL: ${VITE_SERVER_URL:-http://localhost/api/chat}
+        VITE_IPFS_GATEWAY_URL: ${VITE_IPFS_GATEWAY_URL:-http://localhost/ipfs}
+    container_name: chat-frontend-preprod
+    networks:
+      - chat-net
+    restart: unless-stopped
+    expose:
+      - "5173"
+    depends_on:
+      - nodejs
+      - auth-service
+      - channel-service
+
+networks:
+  chat-net:
+    driver: bridge
+
+volumes:
+  redis_data:

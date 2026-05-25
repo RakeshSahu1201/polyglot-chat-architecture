@@ -4,149 +4,66 @@ const express = require("express");
 const { createServer } = require("node:http");
 const cors = require("cors");
 const { Server } = require("socket.io");
-const { config } = require("./db/MongoConnection");
+const { createAdapter } = require("@socket.io/redis-adapter");
+
+// Database connections
+const { config: mongoConfig } = require("./db/MongoConnection");
 const redis = require("./db/RedisClient");
-const { create_conversation } = require("./repository/Conversation");
-const conversation_router = require("./router/Conversation");
+
+// Routes
+const chatRoutes = require("./chat/routes");
+const mediaRoutes = require("./media/routes");
+const { setupSocketHandlers } = require("./chat/socket-handler");
+
+// Gateway
+const { setupMiddleware } = require("./gateway/middleware");
+const { errorHandler } = require("./gateway/error-handler");
 
 const app = express();
 const server = createServer(app);
 
-// DB connectivity
-config();
+// Initialize databases
+(async () => {
+  try {
+    // MongoDB for chat/media
+    mongoConfig();
+    console.log("✓ MongoDB initialized for chat service");
+  } catch (error) {
+    console.error("✗ Database initialization failed:", error);
+    process.exit(1);
+  }
+})();
 
-app.use(express.json());
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
-    credentials: true,
-  })
-);
-app.use("/media", express.static("media"));
+// Setup gateway middleware (CORS, body parser, logging, etc.)
+setupMiddleware(app);
+
+// Chat routes
+app.use("/chat", chatRoutes);
+app.use("/media", mediaRoutes);
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    origin: process.env.CORS_ORIGIN || "http://localhost",
     credentials: true,
   },
 });
 
-// ---------------------------------------------------------------------------
-// Redis helpers — online user presence
-// ---------------------------------------------------------------------------
+// Setup Redis Adapter for Socket.io (enables multi-instance scaling)
+(async () => {
+  try {
+    const pubClient = redis.duplicate();
+    const subClient = redis.duplicate();
 
-/**
- * Store a user's socket_id in Redis with a TTL.
- * Key: online:<userId>  Value: JSON { _id, name, socket_id }
- */
-const setUserOnline = async (user, socket_id) => {
-  const payload = JSON.stringify({ ...user, socket_id });
-  await redis.set(`online:${user._id}`, payload, "EX", 86400); // 24h TTL
-};
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log("✓ Redis adapter configured for Socket.io");
 
-/**
- * Remove a user from the online set when they disconnect.
- * We look up by socket_id because "disconnect" doesn't carry the user object.
- */
-const removeUserBySocketId = async (socket_id) => {
-  const keys = await redis.keys("online:*");
-  for (const key of keys) {
-    const raw = await redis.get(key);
-    if (!raw) continue;
-    const user = JSON.parse(raw);
-    if (user.socket_id === socket_id) {
-      await redis.del(key);
-      break;
-    }
+    // Setup Socket.io event handlers
+    setupSocketHandlers(io, redis);
+  } catch (error) {
+    console.error("✗ Failed to setup Redis adapter:", error);
   }
-};
+})();
 
-/** Resolve a socket_id for a given userId from Redis. Returns null if offline. */
-const getSocketId = async (userId) => {
-  const raw = await redis.get(`online:${userId}`);
-  if (!raw) return null;
-  return JSON.parse(raw).socket_id;
-};
-
-/** Get all currently online users from Redis */
-const getOnlineUsers = async () => {
-  const keys = await redis.keys("online:*");
-  const users = [];
-  for (const key of keys) {
-    const raw = await redis.get(key);
-    if (raw) {
-      users.push(JSON.parse(raw));
-    }
-  }
-  return users;
-};
-
-// ---------------------------------------------------------------------------
-// Socket.IO
-// ---------------------------------------------------------------------------
-
-io.on("connection", (socket) => {
-  // ------- User presence -------
-
-  socket.on("login_me", async ({ logged_user }) => {
-    if (!logged_user) return;
-    try {
-      await setUserOnline(logged_user, socket.id);
-      const connected_users = await getOnlineUsers();
-      io.emit("get_connected_users", { connected_users });
-    } catch (err) {
-      console.error("login_me error:", err.message);
-    }
-  });
-
-  socket.on("disconnect", async () => {
-    try {
-      await removeUserBySocketId(socket.id);
-      const connected_users = await getOnlineUsers();
-      io.emit("get_connected_users", { connected_users });
-    } catch (err) {
-      console.error("disconnect cleanup error:", err.message);
-    }
-  });
-
-  // ------- Messaging -------
-
-  socket.on("send_message", async ({ message }, callback) => {
-    try {
-      const { data, error } = await create_conversation({ message });
-      if (error) {
-        return callback({ error });
-      }
-
-      const fromSocketId = await getSocketId(message.from);
-      const toSocketId = await getSocketId(message.to);
-
-      const targets = [fromSocketId, toSocketId].filter(Boolean);
-      if (targets.length > 0) {
-        io.to(targets).emit("message_sent", { new_message: data });
-      }
-
-      callback({ data });
-    } catch (err) {
-      console.error("send_message error:", err.message);
-      callback({ error: err.message });
-    }
-  });
-
-  socket.on("send_media", async ({ media_message }) => {
-    try {
-      const fromSocketId = await getSocketId(media_message.from);
-      const toSocketId = await getSocketId(media_message.to);
-
-      const targets = [fromSocketId, toSocketId].filter(Boolean);
-      if (targets.length > 0) {
-        io.to(targets).emit("message_sent", { new_message: media_message });
-      }
-    } catch (err) {
-      console.error("send_media error:", err.message);
-    }
-  });
-});
 // ---------------------------------------------------------------------------
 // Redis Pub/Sub for Channel Events (from Go channel-service)
 // ---------------------------------------------------------------------------
@@ -158,38 +75,40 @@ redisSubscriber.on("error", (err) => {
 });
 
 async function setupRedisSubscriber() {
-  await redisSubscriber.connect();
-  console.log("Redis Subscriber connected to relay channel events");
+  try {
+    console.log("✓ Redis Subscriber connected to relay channel events");
 
-  // Subscribe to all channel events using pSubscribe
-  await redisSubscriber.pSubscribe("channel:*", (message, channel) => {
-    try {
-      const event = JSON.parse(message);
-      if (event.type === "channel_message") {
-        const channelId = event.channelId;
-        const msgData = event.message;
+    await redisSubscriber.psubscribe("channel:*");
+    redisSubscriber.on("pmessage", (pattern, channel, message) => {
+      try {
+        const event = JSON.parse(message);
+        if (event.type === "channel_message") {
+          const channelId = event.channelId;
+          const msgData = event.message;
 
-        // In a real app we'd query Go or Redis for the current online members of THIS channel.
-        // For simplicity right now, we can just broadcast to ALL online users, and the React frontend 
-        // will decide if it cares about this channel ID.
-        // A better optimization later: io.to(`channel-room-${channelId}`).emit(...)
-        io.emit("channel_message", { channelId, message: msgData });
+          // Broadcast channel messages to all connected clients
+          // They'll filter by channelId on the frontend
+          io.emit("channel_message", { channelId, message: msgData });
+        }
+      } catch (err) {
+        console.error("Redis channel message parse error:", err);
       }
-    } catch (err) {
-      console.error("Redis channel message parse error:", err);
-    }
-  });
+    });
+  } catch (error) {
+    console.error("Failed to setup Redis subscriber:", error);
+  }
 }
 
 setupRedisSubscriber().catch(console.error);
 
-// ---------------------------------------------------------------------------
-// REST routes
-// ---------------------------------------------------------------------------
+// Setup error handler (must be last middleware)
+app.use(errorHandler);
 
-app.use("/conversation", conversation_router);
+// ---------------------------------------------------------------------------
+// Start Server
+// ---------------------------------------------------------------------------
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`server up http://localhost:${PORT}`);
+  console.log(`✓ Chat service listening on http://localhost:${PORT}`);
 });

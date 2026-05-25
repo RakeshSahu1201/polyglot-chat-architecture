@@ -3,6 +3,7 @@ import ReactEmoji from "react-emoji";
 import "./Message.css";
 import { useLocation } from "react-router-dom";
 import MediaComponent from "../media/MediaComponent";
+import { hasRenderableMedia } from "../../utils/media";
 
 const Message = ({ message }) => {
   const location = useLocation();
@@ -14,13 +15,14 @@ const Message = ({ message }) => {
 
   // Channel messages carry a human-readable sender name
   const senderName = message.user_name || null;
+  const showsMedia = hasRenderableMedia(message);
 
   return isSentByCurrentUser ? (
     <div className="messageContainer justifyEnd">
       <div className="messageBox backgroundBlue">
         <div className="messageText colorWhite">
-          {message.media_url ? (
-            <MediaComponent mediaUrl={message.media_url} />
+          {showsMedia ? (
+            <MediaComponent media={message} />
           ) : (
             ReactEmoji.emojify(message.body || "")
           )}
@@ -36,8 +38,8 @@ const Message = ({ message }) => {
       )}
       <div className="messageBox backgroundLight">
         <div className="messageText colorDark">
-          {message.media_url ? (
-            <MediaComponent mediaUrl={message.media_url} />
+          {showsMedia ? (
+            <MediaComponent media={message} />
           ) : (
             ReactEmoji.emojify(message.body || "")
           )}
