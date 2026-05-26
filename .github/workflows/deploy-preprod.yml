@@ -108,7 +108,7 @@ jobs:
 
           # Ensure repo exists; clone if first run
           if [ ! -d ".git" ]; then
-            git clone https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }} .
+            git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} .
           fi
 
           git fetch origin
