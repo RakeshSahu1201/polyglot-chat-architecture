@@ -24,21 +24,52 @@ env:
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────────
-  # Deploy — SSH into the pre-prod server and roll out changes
+  # 1. Build and Push Images
+  # ──────────────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: 🏗️ Build & Push Images
+    runs-on: ubuntu-latest
+    environment: preprod
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker images
+        env:
+          VITE_AUTH_URL: ${{ secrets.PREPROD_VITE_AUTH_URL }}
+          VITE_CHANNEL_URL: ${{ secrets.PREPROD_VITE_CHANNEL_URL }}
+          VITE_SERVER_URL: ${{ secrets.PREPROD_VITE_SERVER_URL }}
+          VITE_IPFS_GATEWAY_URL: ${{ secrets.PREPROD_VITE_IPFS_GATEWAY_URL }}
+        run: |
+          docker compose -f ${{ env.COMPOSE_FILE }} build
+          docker compose -f ${{ env.COMPOSE_FILE }} push
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 2. Deploy — Transfer configs and pull images on server
   # ──────────────────────────────────────────────────────────────────────────
   deploy:
     name: 🚢 Deploy to Pre-Prod Server
     runs-on: ubuntu-latest
-    environment: preprod        # GitHub Environment (for approval gates / env secrets)
+    needs: build-and-push
+    environment: preprod
 
     steps:
-      # ── 2a. Install SSH key ────────────────────────────────────────────────
+      - name: Checkout code (for config files)
+        uses: actions/checkout@v4
+
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
 
-      # ── 2b. Add server to known_hosts ─────────────────────────────────────
       - name: Add server to known_hosts
         run: |
           mkdir -p ~/.ssh
@@ -46,10 +77,13 @@ jobs:
           ssh-keyscan -T 10 -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} -H ${{ secrets.PREPROD_SERVER_HOST }} >> ~/.ssh/known_hosts 2>&1 && echo "✅ Host key fetched" || echo "❌ ssh-keyscan failed — check if port is open on the server"
           cat ~/.ssh/known_hosts
 
-      # ── 2c. Write .env.preprod on the remote server ───────────────────────
-      #        Secret values are expanded by GitHub Actions on the runner,
-      #        then sent as literal text over SSH — the file is never committed.
-      #        NOTE: heredoc delimiters must be at column 0 (no indentation).
+      - name: Copy config files to server
+        run: |
+          # Create directories and transfer the minimal files needed to run docker compose
+          ssh -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} "mkdir -p ${{ env.APP_DIR }}/nginx"
+          scp -P ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ env.COMPOSE_FILE }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }}:${{ env.APP_DIR }}/
+          scp -P ${{ secrets.PREPROD_SERVER_PORT || '22' }} nginx/nginx.conf ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }}:${{ env.APP_DIR }}/nginx/
+
       - name: Write .env.preprod on server
         run: |
           ssh -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} "cat > ${{ env.APP_DIR }}/.env.preprod" << 'EOF'
@@ -57,91 +91,58 @@ jobs:
           CORS_ORIGIN=${{ secrets.PREPROD_CORS_ORIGIN }}
           SERVER_BASE_URL=${{ secrets.PREPROD_SERVER_BASE_URL }}
           JWT_SECRET=${{ secrets.PREPROD_JWT_SECRET }}
-
+          
           # Supabase PostgreSQL
           SUPABASE_HOST=${{ secrets.PREPROD_SUPABASE_HOST }}
           SUPABASE_PORT=${{ secrets.PREPROD_SUPABASE_PORT }}
           SUPABASE_USER=${{ secrets.PREPROD_SUPABASE_USER }}
           SUPABASE_PASSWORD=${{ secrets.PREPROD_SUPABASE_PASSWORD }}
           SUPABASE_DB=${{ secrets.PREPROD_SUPABASE_DB }}
-
+          
           # MongoDB Atlas
           MONGODB_ATLAS_URI=${{ secrets.PREPROD_MONGODB_ATLAS_URI }}
-
+          
           # Pinata IPFS
           PINATA_JWT=${{ secrets.PREPROD_PINATA_JWT }}
           PINATA_API_URL=https://api.pinata.cloud
-
-          # Frontend Vite build args (baked at image build time)
-          VITE_AUTH_URL=${{ secrets.PREPROD_VITE_AUTH_URL }}
-          VITE_CHANNEL_URL=${{ secrets.PREPROD_VITE_CHANNEL_URL }}
-          VITE_SERVER_URL=${{ secrets.PREPROD_VITE_SERVER_URL }}
-          VITE_IPFS_GATEWAY_URL=${{ secrets.PREPROD_VITE_IPFS_GATEWAY_URL }}
-          IPFS_GATEWAY_BASE_URL=${{ secrets.PREPROD_VITE_IPFS_GATEWAY_URL }}
           EOF
 
-      # ── 2d. Pull latest code on the server ────────────────────────────────
-      - name: Pull latest code
+      - name: Pull images & restart services
         run: |
           ssh -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} << ENDSSH
           set -e
           cd ${{ env.APP_DIR }}
-
-          # Ensure repo exists; init if first run (directory is not empty because of .env.preprod)
-          if [ ! -d ".git" ]; then
-            git init
-            git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-          fi
-
-          git fetch origin
-          git checkout ${{ github.ref_name }}
-          git reset --hard origin/${{ github.ref_name }}
-          echo "✅ Code updated to \$(git rev-parse --short HEAD)"
-          ENDSSH
-
-      # ── 2e. Build & restart services ──────────────────────────────────────
-      - name: Build & restart Docker services
-        run: |
-          ssh -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} << ENDSSH
-          set -e
-          cd ${{ env.APP_DIR }}
-
-          echo "🔨 Building images..."
-          docker compose -f ${{ env.COMPOSE_FILE }} \
-            --env-file .env.preprod \
-            build --no-cache --parallel
-
+          
+          echo "🔑 Authenticating server with GitHub Container Registry..."
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          echo "📥 Pulling images..."
+          docker compose -f ${{ env.COMPOSE_FILE }} pull
+          
           echo "🚀 Bringing services up..."
-          docker compose -f ${{ env.COMPOSE_FILE }} \
-            --env-file .env.preprod \
-            up -d --remove-orphans
-
+          docker compose -f ${{ env.COMPOSE_FILE }} --env-file .env.preprod up -d --remove-orphans
+          
           echo "🧹 Cleaning up dangling images..."
           docker image prune -f
-
+          
           echo "✅ Deployment complete!"
           ENDSSH
 
-      # ── 2f. Health check ──────────────────────────────────────────────────
       - name: Health check
         run: |
           echo "Waiting 20 s for services to initialise..."
           sleep 20
-          # Hit the nginx /health endpoint from the runner (server must allow ingress on port 80)
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            http://${{ secrets.PREPROD_SERVER_HOST }}/health || echo "000")
-          echo "HTTP status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "❌ Health check failed (got $STATUS)"
+          STATUS=\$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.PREPROD_SERVER_HOST }}/health || echo "000")
+          echo "HTTP status: \$STATUS"
+          if [ "\$STATUS" != "200" ]; then
+            echo "❌ Health check failed (got \$STATUS)"
             exit 1
           fi
           echo "✅ Health check passed"
 
-      # ── 2g. Notify on failure ─────────────────────────────────────────────
       - name: Notify on failure
         if: failure()
         run: |
           echo "::error::Pre-prod deployment FAILED for commit ${{ github.sha }}"
           echo "Branch: ${{ github.ref_name }}"
           echo "Triggered by: ${{ github.actor }}"
-          # Optional: add Slack / Discord webhook call here

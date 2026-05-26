@@ -57,6 +57,7 @@ services:
 
   # Go Auth Service
   auth-service:
+    image: ghcr.io/rakeshsahu1201/polyglot-chat-auth-service:preprod
     build:
       context: ./go-service
       dockerfile: Dockerfile.auth
@@ -90,6 +91,7 @@ services:
 
   # Go Channel Service
   channel-service:
+    image: ghcr.io/rakeshsahu1201/polyglot-chat-channel-service:preprod
     build:
       context: ./go-service
       dockerfile: Dockerfile.channel
@@ -133,6 +135,7 @@ services:
 
   # Go Worker Service
   worker-service:
+    image: ghcr.io/rakeshsahu1201/polyglot-chat-worker-service:preprod
     build:
       context: ./go-service
       dockerfile: Dockerfile.worker
@@ -170,6 +173,7 @@ services:
 
   # Node.js Backend
   nodejs:
+    image: ghcr.io/rakeshsahu1201/polyglot-chat-nodejs:preprod
     build:
       context: ./backend
     container_name: chat-nodejs-preprod
@@ -216,6 +220,7 @@ services:
 
   # Frontend
   frontend:
+    image: ghcr.io/rakeshsahu1201/polyglot-chat-frontend:preprod
     build:
       context: ./frontend
       args:
