@@ -6,7 +6,7 @@ name: 🚀 Deploy — Pre-Production
 on:
   push:
     branches:
-      - pre-prod          # auto-deploy on every push to this branch
+      - polyglot-chat     # auto-deploy on every push to this branch
   workflow_dispatch:      # allow manual trigger from GitHub UI
 
 # Cancel in-progress runs on the same branch to avoid race conditions
@@ -112,8 +112,8 @@ jobs:
           fi
 
           git fetch origin
-          git checkout pre-prod
-          git reset --hard origin/pre-prod
+          git checkout ${{ github.ref_name }}
+          git reset --hard origin/${{ github.ref_name }}
           echo "✅ Code updated to \$(git rev-parse --short HEAD)"
           ENDSSH
 
