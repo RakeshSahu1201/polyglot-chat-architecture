@@ -42,7 +42,9 @@ jobs:
       - name: Add server to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.PREPROD_SERVER_HOST }} >> ~/.ssh/known_hosts
+          echo "Scanning host: ${{ secrets.PREPROD_SERVER_HOST }} on port ${{ secrets.PREPROD_SERVER_PORT || '22' }}"
+          ssh-keyscan -T 10 -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} -H ${{ secrets.PREPROD_SERVER_HOST }} >> ~/.ssh/known_hosts 2>&1 && echo "✅ Host key fetched" || echo "❌ ssh-keyscan failed — check if port is open on the server"
+          cat ~/.ssh/known_hosts
 
       # ── 2c. Write .env.preprod on the remote server ───────────────────────
       #        Secret values are expanded by GitHub Actions on the runner,
@@ -50,8 +52,8 @@ jobs:
       #        NOTE: heredoc delimiters must be at column 0 (no indentation).
       - name: Write .env.preprod on server
         run: |
-          ssh ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} "mkdir -p ${{ env.APP_DIR }}"
-          ssh ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} "cat > ${{ env.APP_DIR }}/.env.preprod" << 'EOF'
+          ssh -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} "mkdir -p ${{ env.APP_DIR }}"
+          ssh -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} "cat > ${{ env.APP_DIR }}/.env.preprod" << 'EOF'
           NODE_ENV=preprod
           CORS_ORIGIN=${{ secrets.PREPROD_CORS_ORIGIN }}
           SERVER_BASE_URL=${{ secrets.PREPROD_SERVER_BASE_URL }}
@@ -82,7 +84,7 @@ jobs:
       # ── 2d. Pull latest code on the server ────────────────────────────────
       - name: Pull latest code
         run: |
-          ssh ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} << ENDSSH
+          ssh -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} << ENDSSH
           set -e
           mkdir -p ${{ env.APP_DIR }}
           cd ${{ env.APP_DIR }}
@@ -101,7 +103,7 @@ jobs:
       # ── 2e. Build & restart services ──────────────────────────────────────
       - name: Build & restart Docker services
         run: |
-          ssh ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} << ENDSSH
+          ssh -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} << ENDSSH
           set -e
           cd ${{ env.APP_DIR }}
 
