@@ -24,30 +24,11 @@ env:
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────────
-  # 1. CI — validate compose syntax
-  # ──────────────────────────────────────────────────────────────────────────
-  # ci-check:
-  #   name: 🔍 CI Check
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-      
-  #     - name: Validate docker-compose syntax
-  #       # Use a dummy env file so compose can resolve all ${VAR} references
-  #       # without needing real secret values — we just want syntax validation.
-  #       run: |
-  #         cp .env.preprod.example .env.preprod.ci
-  #         docker compose -f ${{ env.COMPOSE_FILE }} --env-file .env.preprod.ci config --quiet
-  #         echo "✅ docker-compose syntax OK"
-
-  # ──────────────────────────────────────────────────────────────────────────
-  # 2. Deploy — SSH into the pre-prod server and roll out changes
+  # Deploy — SSH into the pre-prod server and roll out changes
   # ──────────────────────────────────────────────────────────────────────────
   deploy:
     name: 🚢 Deploy to Pre-Prod Server
     runs-on: ubuntu-latest
-    needs: ci-check
     environment: preprod        # GitHub Environment (for approval gates / env secrets)
 
     steps:
