@@ -1,0 +1,165 @@
+name: 🚀 Deploy — Pre-Production
+
+# ────────────────────────────────────────────────────────────────────────────
+# Triggers
+# ────────────────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches:
+      - pre-prod          # auto-deploy on every push to this branch
+  workflow_dispatch:      # allow manual trigger from GitHub UI
+
+# Cancel in-progress runs on the same branch to avoid race conditions
+concurrency:
+  group: deploy-preprod-${{ github.ref }}
+  cancel-in-progress: true
+
+# ────────────────────────────────────────────────────────────────────────────
+# Environment
+# ────────────────────────────────────────────────────────────────────────────
+env:
+  DEPLOY_ENV: preprod
+  COMPOSE_FILE: docker-compose.preprod.yml
+  APP_DIR: /opt/polyglot-chat
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # 1. CI — validate compose syntax
+  # ──────────────────────────────────────────────────────────────────────────
+  ci-check:
+    name: 🔍 CI Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose syntax
+        # Use a dummy env file so compose can resolve all ${VAR} references
+        # without needing real secret values — we just want syntax validation.
+        run: |
+          cp .env.preprod.example .env.preprod.ci
+          docker compose -f ${{ env.COMPOSE_FILE }} --env-file .env.preprod.ci config --quiet
+          echo "✅ docker-compose syntax OK"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 2. Deploy — SSH into the pre-prod server and roll out changes
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: 🚢 Deploy to Pre-Prod Server
+    runs-on: ubuntu-latest
+    needs: ci-check
+    environment: pre-prod        # GitHub Environment (for approval gates / env secrets)
+
+    steps:
+      # ── 2a. Install SSH key ────────────────────────────────────────────────
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+
+      # ── 2b. Add server to known_hosts ─────────────────────────────────────
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.PREPROD_SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      # ── 2c. Write .env.preprod on the remote server ───────────────────────
+      #        Secret values are expanded by GitHub Actions on the runner,
+      #        then sent as literal text over SSH — the file is never committed.
+      #        NOTE: heredoc delimiters must be at column 0 (no indentation).
+      - name: Write .env.preprod on server
+        run: |
+          ssh ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} "mkdir -p ${{ env.APP_DIR }}"
+          ssh ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} "cat > ${{ env.APP_DIR }}/.env.preprod" << 'EOF'
+          NODE_ENV=preprod
+          CORS_ORIGIN=${{ secrets.PREPROD_CORS_ORIGIN }}
+          SERVER_BASE_URL=${{ secrets.PREPROD_SERVER_BASE_URL }}
+          JWT_SECRET=${{ secrets.PREPROD_JWT_SECRET }}
+
+          # Supabase PostgreSQL
+          SUPABASE_HOST=${{ secrets.PREPROD_SUPABASE_HOST }}
+          SUPABASE_PORT=${{ secrets.PREPROD_SUPABASE_PORT }}
+          SUPABASE_USER=${{ secrets.PREPROD_SUPABASE_USER }}
+          SUPABASE_PASSWORD=${{ secrets.PREPROD_SUPABASE_PASSWORD }}
+          SUPABASE_DB=${{ secrets.PREPROD_SUPABASE_DB }}
+
+          # MongoDB Atlas
+          MONGODB_ATLAS_URI=${{ secrets.PREPROD_MONGODB_ATLAS_URI }}
+
+          # Pinata IPFS
+          PINATA_JWT=${{ secrets.PREPROD_PINATA_JWT }}
+          PINATA_API_URL=https://api.pinata.cloud
+
+          # Frontend Vite build args (baked at image build time)
+          VITE_AUTH_URL=${{ secrets.PREPROD_VITE_AUTH_URL }}
+          VITE_CHANNEL_URL=${{ secrets.PREPROD_VITE_CHANNEL_URL }}
+          VITE_SERVER_URL=${{ secrets.PREPROD_VITE_SERVER_URL }}
+          VITE_IPFS_GATEWAY_URL=${{ secrets.PREPROD_VITE_IPFS_GATEWAY_URL }}
+          IPFS_GATEWAY_BASE_URL=${{ secrets.PREPROD_VITE_IPFS_GATEWAY_URL }}
+          EOF
+
+      # ── 2d. Pull latest code on the server ────────────────────────────────
+      - name: Pull latest code
+        run: |
+          ssh ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} << ENDSSH
+          set -e
+          mkdir -p ${{ env.APP_DIR }}
+          cd ${{ env.APP_DIR }}
+
+          # Ensure repo exists; clone if first run
+          if [ ! -d ".git" ]; then
+            git clone https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }} .
+          fi
+
+          git fetch origin
+          git checkout pre-prod
+          git reset --hard origin/pre-prod
+          echo "✅ Code updated to \$(git rev-parse --short HEAD)"
+          ENDSSH
+
+      # ── 2e. Build & restart services ──────────────────────────────────────
+      - name: Build & restart Docker services
+        run: |
+          ssh ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} << ENDSSH
+          set -e
+          cd ${{ env.APP_DIR }}
+
+          echo "🔨 Building images..."
+          docker compose -f ${{ env.COMPOSE_FILE }} \
+            --env-file .env.preprod \
+            build --no-cache --parallel
+
+          echo "🚀 Bringing services up..."
+          docker compose -f ${{ env.COMPOSE_FILE }} \
+            --env-file .env.preprod \
+            up -d --remove-orphans
+
+          echo "🧹 Cleaning up dangling images..."
+          docker image prune -f
+
+          echo "✅ Deployment complete!"
+          ENDSSH
+
+      # ── 2f. Health check ──────────────────────────────────────────────────
+      - name: Health check
+        run: |
+          echo "Waiting 20 s for services to initialise..."
+          sleep 20
+          # Hit the nginx /health endpoint from the runner (server must allow ingress on port 80)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://${{ secrets.PREPROD_SERVER_HOST }}/health || echo "000")
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Health check failed (got $STATUS)"
+            exit 1
+          fi
+          echo "✅ Health check passed"
+
+      # ── 2g. Notify on failure ─────────────────────────────────────────────
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Pre-prod deployment FAILED for commit ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Triggered by: ${{ github.actor }}"
+          # Optional: add Slack / Discord webhook call here
