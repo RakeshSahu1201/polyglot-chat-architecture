@@ -6,7 +6,7 @@ name: 🚀 Deploy — Pre-Production
 on:
   push:
     branches:
-      - polyglot-chat     # auto-deploy on every push to this branch
+      - master     # auto-deploy on every push to this branch
   workflow_dispatch:      # allow manual trigger from GitHub UI
 
 # Cancel in-progress runs on the same branch to avoid race conditions
@@ -48,7 +48,7 @@ jobs:
     name: 🚢 Deploy to Pre-Prod Server
     runs-on: ubuntu-latest
     needs: ci-check
-    environment: pre-prod        # GitHub Environment (for approval gates / env secrets)
+    environment: preprod        # GitHub Environment (for approval gates / env secrets)
 
     steps:
       # ── 2a. Install SSH key ────────────────────────────────────────────────
