@@ -133,10 +133,10 @@ jobs:
         run: |
           echo "Waiting 20 s for services to initialise..."
           sleep 20
-          STATUS=\$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.PREPROD_SERVER_HOST }}:8001/health || echo "000")
-          echo "HTTP status: \$STATUS"
-          if [ "\$STATUS" != "200" ]; then
-            echo "❌ Health check failed (got \$STATUS)"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.PREPROD_SERVER_HOST }}:8001/health || echo "000")
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Health check failed (got $STATUS)"
             exit 1
           fi
           echo "✅ Health check passed"
