@@ -28,7 +28,7 @@ Thumbs.db
 *.pid.lock
 
 # ── Uploads / media ───────────────────────────────────────
-backend/media/
+backend/media/uploads/
 
 # ── Go ────────────────────────────────────────────────────
 *.exe
