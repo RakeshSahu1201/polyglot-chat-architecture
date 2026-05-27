@@ -41,8 +41,15 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and Push Docker images
         env:
+          DOCKER_DEFAULT_PLATFORM: linux/arm64
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           VITE_AUTH_URL: ${{ secrets.PREPROD_VITE_AUTH_URL }}
           VITE_CHANNEL_URL: ${{ secrets.PREPROD_VITE_CHANNEL_URL }}
