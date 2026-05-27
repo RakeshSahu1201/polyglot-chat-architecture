@@ -118,7 +118,7 @@ jobs:
           echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
           
           echo "📥 Pulling images..."
-          docker compose -f ${{ env.COMPOSE_FILE }} pull
+          docker compose -f ${{ env.COMPOSE_FILE }} --env-file .env.preprod pull
           
           echo "🚀 Bringing services up..."
           docker compose -f ${{ env.COMPOSE_FILE }} --env-file .env.preprod up -d --remove-orphans
