@@ -29,7 +29,7 @@ services:
     networks:
       - chat-net
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -83,11 +83,6 @@ services:
       - "8080"
     depends_on:
       - redis
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
   # Go Channel Service
   channel-service:
@@ -127,11 +122,6 @@ services:
       - "8081"
     depends_on:
       - redis
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
   # Go Worker Service
   worker-service:
