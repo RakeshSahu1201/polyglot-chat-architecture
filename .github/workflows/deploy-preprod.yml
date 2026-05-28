@@ -89,7 +89,7 @@ jobs:
           # Create directories and transfer the minimal files needed to run docker compose
           ssh -p ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }} "mkdir -p ${{ env.APP_DIR }}/nginx"
           scp -P ${{ secrets.PREPROD_SERVER_PORT || '22' }} ${{ env.COMPOSE_FILE }} ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }}:${{ env.APP_DIR }}/
-          scp -P ${{ secrets.PREPROD_SERVER_PORT || '22' }} nginx/nginx.conf ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }}:${{ env.APP_DIR }}/nginx/
+          scp -P ${{ secrets.PREPROD_SERVER_PORT || '22' }} nginx/nginx.preprod.conf ${{ secrets.PREPROD_SERVER_USER }}@${{ secrets.PREPROD_SERVER_HOST }}:${{ env.APP_DIR }}/nginx/
 
       - name: Write .env.preprod on server
         run: |
