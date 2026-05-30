@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Pre-Production Docker Compose
 # Uses managed services:
 # - Supabase (PostgreSQL)
