@@ -13,8 +13,8 @@ services:
   api-gateway:
     image: nginx:alpine
     container_name: chat-api-gateway-preprod
-    ports:
-      - "8001:80"
+    expose:
+      - "80"
     volumes:
       - ./nginx/nginx.preprod.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -28,6 +28,7 @@ services:
         condition: service_started
     networks:
       - chat-net
+      - nginx-proxy-network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 10s
@@ -42,8 +43,8 @@ services:
     image: redis:7-alpine
     container_name: chat-redis-preprod
     command: redis-server --appendonly yes
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
     networks:
@@ -232,6 +233,8 @@ services:
 networks:
   chat-net:
     driver: bridge
+  nginx-proxy-network:
+    external: true
 
 volumes:
   redis_data:
