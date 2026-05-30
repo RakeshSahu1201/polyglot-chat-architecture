@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./Auth.css";
 import axios from "axios";
 
-const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:8080';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const Auth = () => {
   const [name, setName] = useState("");
@@ -18,7 +18,7 @@ const Auth = () => {
     }
     setLoading(true);
     try {
-      const result = await axios.post(`${AUTH_URL}/auth/register`, {
+      const result = await axios.post(`${API_URL}/auth/register`, {
         name,
         password,
       });
@@ -42,7 +42,7 @@ const Auth = () => {
     }
     setLoading(true);
     try {
-      const result = await axios.post(`${AUTH_URL}/auth/login`, {
+      const result = await axios.post(`${API_URL}/auth/login`, {
         name,
         password,
       });

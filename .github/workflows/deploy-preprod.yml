@@ -51,9 +51,7 @@ jobs:
         env:
           DOCKER_DEFAULT_PLATFORM: linux/arm64
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          VITE_AUTH_URL: ${{ secrets.PREPROD_VITE_AUTH_URL }}
-          VITE_CHANNEL_URL: ${{ secrets.PREPROD_VITE_CHANNEL_URL }}
-          VITE_SERVER_URL: ${{ secrets.PREPROD_VITE_SERVER_URL }}
+          VITE_API_URL: ${{ secrets.PREPROD_VITE_API_URL }}
           VITE_IPFS_GATEWAY_URL: ${{ secrets.PREPROD_VITE_IPFS_GATEWAY_URL }}
         run: |
           docker compose -f ${{ env.COMPOSE_FILE }} build

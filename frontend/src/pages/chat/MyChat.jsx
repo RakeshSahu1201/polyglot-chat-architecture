@@ -12,10 +12,8 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { resolveMediaSource } from "../../utils/media";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL;
-const CHANNEL_URL = import.meta.env.VITE_CHANNEL_URL || 'http://localhost/api/channels';
-const WS_URL = (CHANNEL_URL || window.location.origin + '/api/channels').replace(/^http/, 'ws');
-const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost/api/auth';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+const WS_URL = API_URL.replace(/^http/, 'ws');
 
 // Socket.IO connects to the page origin — nginx routes /socket.io/ to the Node.js chat service.
 // Do NOT use SERVER_URL as the io() target (that's the REST base path, not the socket origin).
@@ -122,7 +120,7 @@ const MyChat = () => {
       // 1. Fetch history from Go REST API
       const fetchChannelHistory = async () => {
         try {
-          const res = await axios.get(`${CHANNEL_URL}/channels/${activeChannel.id}/messages`, {
+          const res = await axios.get(`${API_URL}/channels/${activeChannel.id}/messages`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           setConversation(res.data.messages || []);
@@ -162,7 +160,7 @@ const MyChat = () => {
     if (!token) return;
 
     try {
-      const res = await axios.get(`${AUTH_URL}/users`, {
+      const res = await axios.get(`${API_URL}/users`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAllUsers(res.data.data || []);
@@ -175,7 +173,7 @@ const MyChat = () => {
   useEffect(() => {
     if (!token) return;
 
-    axios.get(`${CHANNEL_URL}/channels`, {
+    axios.get(`${API_URL}/channels`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(res => setChannels(res.data.channels || []))
       .catch(err => console.error("fetch channels error:", err.response?.data?.error || err.message));
@@ -251,7 +249,7 @@ const MyChat = () => {
   const get_conversation = async ({ from, to }) => {
     try {
       const result = await axios.get(
-        `${SERVER_URL}/chat/messages/direct`,
+        `${API_URL}/chat/messages/direct`,
         {
           params: { userId: to },
           headers: { Authorization: `Bearer ${token}` },
@@ -277,7 +275,7 @@ const MyChat = () => {
 
       if (activeChannel) {
         const result = await axios.post(
-          `${CHANNEL_URL}/channels/${activeChannel.id}/media`,
+          `${API_URL}/channels/${activeChannel.id}/media`,
           media,
           {
             headers: {
@@ -303,7 +301,7 @@ const MyChat = () => {
         media.append("from", logged_user._id);
         media.append("to", to);
 
-        const result = await axios.post(`${SERVER_URL}/media/upload`, media, {
+        const result = await axios.post(`${API_URL}/media/upload`, media, {
           headers: {
             "Content-Type": "multipart/form-data",
             Authorization: `Bearer ${token}`,
@@ -372,7 +370,7 @@ const MyChat = () => {
     try {
       if (channelModal === 'create') {
         const res = await axios.post(
-          `${CHANNEL_URL}/channels`,
+          `${API_URL}/channels`,
           { name: payload.name, type: payload.type },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -381,7 +379,7 @@ const MyChat = () => {
         return newCh; // ChannelModal will display the invite_code
       } else {
         const res = await axios.post(
-          `${CHANNEL_URL}/channels/join`,
+          `${API_URL}/channels/join`,
           { invite_code: payload.invite_code },
           { headers: { Authorization: `Bearer ${token}` } }
         );

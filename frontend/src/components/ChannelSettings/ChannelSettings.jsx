@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./ChannelSettings.css";
 
-const CHANNEL_URL = import.meta.env.VITE_CHANNEL_URL || 'http://localhost:8081';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const ChannelSettings = ({ channel, onClose, token, loggedUser }) => {
     const [members, setMembers] = useState([]);
@@ -19,7 +19,7 @@ const ChannelSettings = ({ channel, onClose, token, loggedUser }) => {
 
     const fetchChannelInfo = async () => {
         try {
-            const res = await axios.get(`${CHANNEL_URL}/channels/${channel.id}`, {
+            const res = await axios.get(`${API_URL}/channels/${channel.id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setChannelData(res.data.channel);
@@ -31,7 +31,7 @@ const ChannelSettings = ({ channel, onClose, token, loggedUser }) => {
 
     const fetchMembers = async () => {
         try {
-            const res = await axios.get(`${CHANNEL_URL}/channels/${channel.id}/members`, {
+            const res = await axios.get(`${API_URL}/channels/${channel.id}/members`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setMembers(res.data.members || []);
@@ -44,7 +44,7 @@ const ChannelSettings = ({ channel, onClose, token, loggedUser }) => {
         if (!newName.trim() || newName === channelData.name) return;
         setLoading(true);
         try {
-            const res = await axios.put(`${CHANNEL_URL}/channels/${channel.id}`,
+            const res = await axios.put(`${API_URL}/channels/${channel.id}`,
                 { name: newName },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -59,7 +59,7 @@ const ChannelSettings = ({ channel, onClose, token, loggedUser }) => {
 
     const handleApprove = async (membershipId) => {
         try {
-            await axios.post(`${CHANNEL_URL}/channels/members/${membershipId}/approve`, {}, {
+            await axios.post(`${API_URL}/channels/members/${membershipId}/approve`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             fetchMembers();
@@ -72,7 +72,7 @@ const ChannelSettings = ({ channel, onClose, token, loggedUser }) => {
     const handleRemove = async (membershipId) => {
         if (!window.confirm("Are you sure you want to remove/reject this member?")) return;
         try {
-            await axios.delete(`${CHANNEL_URL}/channels/members/${membershipId}`, {
+            await axios.delete(`${API_URL}/channels/members/${membershipId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             fetchMembers();
