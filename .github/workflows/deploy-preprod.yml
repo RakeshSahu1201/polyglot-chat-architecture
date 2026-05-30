@@ -128,6 +128,9 @@ jobs:
           echo "🚀 Bringing services up..."
           docker compose -f ${{ env.COMPOSE_FILE }} --env-file .env.preprod up -d --remove-orphans
           
+          echo "🔄 Reloading NGINX..."
+          docker compose -f ${{ env.COMPOSE_FILE }} exec -T api-gateway nginx -s reload || true
+          
           echo "🧹 Cleaning up dangling images..."
           docker image prune -f
           
