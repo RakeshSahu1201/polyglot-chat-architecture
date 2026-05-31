@@ -182,9 +182,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_AUTH_URL: http://localhost/api/auth
-        VITE_CHANNEL_URL: http://localhost/api/channels
-        VITE_SERVER_URL: http://localhost/api/chat
+        VITE_API_URL: http://localhost/api
         VITE_IPFS_GATEWAY_URL: http://localhost/ipfs
     container_name: chat-frontend
     depends_on:
