@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./ChannelSettings.css";
+import toast from "react-hot-toast";
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -49,9 +50,9 @@ const ChannelSettings = ({ channel, onClose, token, loggedUser }) => {
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             setChannelData(res.data.channel);
-            alert("Channel renamed successfully!");
+            toast.success("Channel renamed successfully!");
         } catch (err) {
-            alert(err.response?.data?.error || "Rename failed");
+            toast.error(err.response?.data?.error || "Rename failed");
         } finally {
             setLoading(false);
         }
@@ -65,7 +66,7 @@ const ChannelSettings = ({ channel, onClose, token, loggedUser }) => {
             fetchMembers();
             fetchChannelInfo();
         } catch (err) {
-            alert(err.response?.data?.error || "Approve failed");
+            toast.error(err.response?.data?.error || "Approve failed");
         }
     };
 
@@ -78,7 +79,7 @@ const ChannelSettings = ({ channel, onClose, token, loggedUser }) => {
             fetchMembers();
             fetchChannelInfo();
         } catch (err) {
-            alert(err.response?.data?.error || "Removal failed");
+            toast.error(err.response?.data?.error || "Removal failed");
         }
     };
 

@@ -21,10 +21,11 @@ const Message = ({ message }) => {
     <div className="messageContainer justifyEnd">
       <div className="messageBox backgroundBlue">
         <div className="messageText colorWhite">
-          {showsMedia ? (
-            <MediaComponent media={message} />
-          ) : (
-            ReactEmoji.emojify(message.body || "")
+          {showsMedia && <MediaComponent media={message} />}
+          {message.body && (
+            <div style={{ marginTop: showsMedia ? "8px" : "0" }}>
+              {ReactEmoji.emojify(message.body)}
+            </div>
           )}
         </div>
       </div>
@@ -38,10 +39,11 @@ const Message = ({ message }) => {
       )}
       <div className="messageBox backgroundLight">
         <div className="messageText colorDark">
-          {showsMedia ? (
-            <MediaComponent media={message} />
-          ) : (
-            ReactEmoji.emojify(message.body || "")
+          {showsMedia && <MediaComponent media={message} />}
+          {message.body && (
+            <div style={{ marginTop: showsMedia ? "8px" : "0" }}>
+              {ReactEmoji.emojify(message.body)}
+            </div>
           )}
         </div>
       </div>

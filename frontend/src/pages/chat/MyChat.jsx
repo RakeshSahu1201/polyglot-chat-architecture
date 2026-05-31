@@ -11,6 +11,7 @@ import { io } from "socket.io-client";
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { resolveMediaSource } from "../../utils/media";
+import toast from "react-hot-toast";
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const WS_URL = API_URL.replace(/^http/, 'ws');
@@ -79,6 +80,10 @@ const MyChat = () => {
   useEffect(() => {
     if (!logged_user) return;
 
+    if (socket.disconnected) {
+      socket.connect();
+    }
+
     const registerPresence = () => {
       socket.emit("login_me", {
         user: {
@@ -100,6 +105,16 @@ const MyChat = () => {
       socket.off("connect", registerPresence);
     };
   }, [logged_user]);
+
+  const handleLogout = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    if (socket) {
+      socket.disconnect();
+    }
+    navigate("/");
+  };
 
   // Fetch conversation history when switching chat partner (DM)
   useEffect(() => {
@@ -180,10 +195,9 @@ const MyChat = () => {
 
     fetchAllUsers();
 
-    // Periodically refresh the user list so newly registered users appear
-    // without waiting for a socket presence event.
-    const userPollInterval = setInterval(fetchAllUsers, 30_000);
-    return () => clearInterval(userPollInterval);
+    // Periodically refreshing the user list has been removed to prevent infinite API calls.
+    // If real-time new user registration updates are needed, they should be driven by a
+    // dedicated WebSocket event rather than polling.
   }, [token]);
 
   // Compute the final users array by merging allUsers with onlineUserIds
@@ -200,15 +214,26 @@ const MyChat = () => {
   // Wire up socket listeners ONCE — cleanup on unmount
   useEffect(() => {
     const handleUsers = ({ connected_users }) => {
-      // Store just the IDs of who is online
-      const ids = new Set(connected_users.map(u => u._id || u.id));
+      // Store just the IDs of who is online (backend returns userId)
+      const ids = new Set(connected_users.map(u => u._id || u.id || u.userId));
       setOnlineUserIds(ids);
 
-      const now = Date.now();
-      if (now - lastUsersRefreshRef.current > 5000) {
-        lastUsersRefreshRef.current = now;
-        fetchAllUsers();
-      }
+      // If a new user just registered and came online, they might not be in our allUsers list yet.
+      // We can dynamically add them using the data from the WebSocket to avoid API polling!
+      setAllUsers(prevUsers => {
+        const knownIds = new Set(prevUsers.map(u => u._id));
+        const newUsers = connected_users
+          .filter(cu => !knownIds.has(cu._id || cu.id || cu.userId))
+          .map(cu => ({
+            _id: cu._id || cu.id || cu.userId,
+            name: cu.name || "Unknown User"
+          }));
+
+        if (newUsers.length > 0) {
+          return [...prevUsers, ...newUsers];
+        }
+        return prevUsers;
+      });
     };
 
     const handleNewMessage = ({ new_message }) => {
@@ -295,7 +320,7 @@ const MyChat = () => {
             })
           );
         } else {
-          alert("WebSocket not connected");
+          toast.error("WebSocket not connected");
         }
       } else {
         media.append("from", logged_user._id);
@@ -322,7 +347,7 @@ const MyChat = () => {
           ({ error }) => {
             if (error) {
               console.error("send_message error:", error);
-              alert(error);
+              toast.error(error);
             }
           }
         );
@@ -346,7 +371,7 @@ const MyChat = () => {
         wsRef.current.send(JSON.stringify({ body: message }));
         setMessage("");
       } else {
-        alert("WebSocket not connected");
+        toast.error("WebSocket not connected");
       }
     } else if (to) {
       // Send via Node.js Socket.IO
@@ -354,7 +379,7 @@ const MyChat = () => {
       socket.emit("send_message", { message: send_message }, ({ data, error }) => {
         if (error) {
           console.error("send_message error:", error);
-          alert(error);
+          toast.error(error);
           return;
         }
         if (data) {
@@ -392,7 +417,7 @@ const MyChat = () => {
       }
     } catch (err) {
       const msg = err.response?.data?.error || err.message;
-      alert(msg);
+      toast.error(msg);
     }
   };
 
@@ -404,7 +429,16 @@ const MyChat = () => {
         {/* Sidebar — search-container maps to the sidebar grid area */}
         <div className="search-container">
           <h2>ChatGram</h2>
-          <span>{logged_user.name}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '10px' }}>
+            <span>{logged_user.name}</span>
+            <button 
+              onClick={handleLogout} 
+              style={{ background: 'none', border: '1px solid #ef4444', color: '#ef4444', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}
+              title="Logout"
+            >
+              Logout
+            </button>
+          </div>
 
           {/* Channels section header with action buttons */}
           <div style={{ marginTop: '20px', padding: '0 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Auth.css";
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -13,7 +14,7 @@ const Auth = () => {
 
   const handleRegisterClick = async () => {
     if (!name.trim() || !password.trim()) {
-      alert("name and password are required");
+      toast.error("name and password are required");
       return;
     }
     setLoading(true);
@@ -23,13 +24,13 @@ const Auth = () => {
         password,
       });
       if (result.data.error) {
-        alert(result.data.error);
+        toast.error(result.data.error);
         return;
       }
       navigate("/chat", { state: { user: result.data.user, token: result.data.token } });
     } catch (error) {
       const msg = error.response?.data?.error || error.message;
-      alert(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -37,7 +38,7 @@ const Auth = () => {
 
   const handleLoginClick = async () => {
     if (!name.trim() || !password.trim()) {
-      alert("name and password are required");
+      toast.error("name and password are required");
       return;
     }
     setLoading(true);
@@ -47,13 +48,13 @@ const Auth = () => {
         password,
       });
       if (result.data.error) {
-        alert(result.data.error);
+        toast.error(result.data.error);
         return;
       }
       navigate("/chat", { state: { user: result.data.user, token: result.data.token } });
     } catch (error) {
       const msg = error.response?.data?.error || error.message;
-      alert(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

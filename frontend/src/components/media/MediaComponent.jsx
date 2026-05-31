@@ -67,101 +67,182 @@ const MediaComponent = ({ media }) => {
     }
   })();
 
+  // State for the full-screen modal
+  const [showModal, setShowModal] = useState(false);
+
   return (
-    <div
-      style={{ position: "relative", display: "inline-block" }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {mediaType === "image" && (
-        <img
-          src={mediaUrl}
-          alt="Media"
-          loading="lazy"
-          style={{ maxWidth: "100%", height: "auto" }}
-        />
-      )}
-      {mediaType === "text" && (
-        <div>
-          {derivedFilename}
-          {hovered && (
-            <button
-              onClick={handleDownload}
-              style={{
-                position: "absolute",
-                top: "5px",
-                right: "5px",
-                backgroundColor: "rgba(255, 255, 255, 0.8)",
-                border: "none",
-                cursor: "pointer",
-              }}
-              disabled={loading}
-            >
-              Download
-            </button>
-          )}
-        </div>
-      )}
-      {mediaType === "video" && (
-        <div>
-          <video src={mediaUrl} controls={play} height={300} width={400} />
-          {!play && (
-            <button
-              onClick={() => setPlay(true)}
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                backgroundColor: "rgba(255, 255, 255, 0.8)",
-                border: "none",
-                cursor: "pointer",
-              }}
-              disabled={loading}
-            >
-              Play
-            </button>
-          )}
-        </div>
-      )}
-      {mediaType === "audio" && (
-        <div>
-          <audio src={mediaUrl} controls />
-          {hovered && (
-            <button
-              onClick={handleDownload}
-              style={{
-                position: "absolute",
-                top: "5px",
-                right: "5px",
-                backgroundColor: "rgba(255, 255, 255, 0.8)",
-                border: "none",
-                cursor: "pointer",
-              }}
-              disabled={loading}
-            >
-              Download
-            </button>
-          )}
-        </div>
-      )}
-      {hovered && mediaType !== "video" && mediaType !== "audio" && (
-        <button
-          onClick={handleDownload}
+    <>
+      <div
+        style={{ position: "relative", display: "inline-block", cursor: (mediaType === "image" || mediaType === "video") ? "pointer" : "default" }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={() => {
+          if (mediaType === "image" || mediaType === "video") setShowModal(true);
+        }}
+      >
+        {mediaType === "image" && (
+          <img
+            src={mediaUrl}
+            alt="Media preview"
+            loading="lazy"
+            style={{ maxWidth: "100%", maxHeight: "150px", borderRadius: "8px", objectFit: "cover" }}
+          />
+        )}
+        {mediaType === "text" && (
+          <div style={{ padding: "10px", background: "rgba(0,0,0,0.1)", borderRadius: "8px" }}>
+            📄 {derivedFilename}
+            {hovered && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+                style={{
+                  position: "absolute",
+                  top: "5px",
+                  right: "5px",
+                  backgroundColor: "rgba(255, 255, 255, 0.8)",
+                  border: "none",
+                  cursor: "pointer",
+                  borderRadius: "4px",
+                  padding: "2px 6px"
+                }}
+                disabled={loading}
+              >
+                Download
+              </button>
+            )}
+          </div>
+        )}
+        {mediaType === "video" && (
+          <div style={{ position: "relative" }}>
+            <video src={mediaUrl} style={{ maxHeight: "150px", maxWidth: "100%", borderRadius: "8px", objectFit: "cover" }} />
+            <div style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              backgroundColor: "rgba(0, 0, 0, 0.6)",
+              color: "white",
+              borderRadius: "50%",
+              width: "40px",
+              height: "40px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none"
+            }}>
+              ▶
+            </div>
+          </div>
+        )}
+        {mediaType === "audio" && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <audio src={mediaUrl} controls style={{ maxWidth: "200px" }} />
+            {hovered && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+                style={{
+                  position: "absolute",
+                  top: "-10px",
+                  right: "-10px",
+                  backgroundColor: "rgba(255, 255, 255, 0.9)",
+                  border: "1px solid #ccc",
+                  cursor: "pointer",
+                  borderRadius: "50%",
+                  width: "24px",
+                  height: "24px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+                disabled={loading}
+              >
+                ↓
+              </button>
+            )}
+          </div>
+        )}
+        {hovered && mediaType !== "video" && mediaType !== "audio" && mediaType !== "text" && (
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+            style={{
+              position: "absolute",
+              top: "5px",
+              right: "5px",
+              backgroundColor: "rgba(255, 255, 255, 0.8)",
+              border: "none",
+              cursor: "pointer",
+              borderRadius: "4px",
+              padding: "2px 6px"
+            }}
+            disabled={loading}
+          >
+            Download
+          </button>
+        )}
+      </div>
+
+      {/* Full-screen Modal for Image and Video */}
+      {showModal && (mediaType === "image" || mediaType === "video") && (
+        <div 
+          onClick={() => setShowModal(false)}
           style={{
-            position: "absolute",
-            top: "5px",
-            right: "5px",
-            backgroundColor: "rgba(255, 255, 255, 0.8)",
-            border: "none",
-            cursor: "pointer",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.85)",
+            zIndex: 9999,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px"
           }}
-          disabled={loading}
         >
-          Download
-        </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); setShowModal(false); }}
+            style={{
+              position: "absolute",
+              top: "20px",
+              right: "30px",
+              background: "none",
+              border: "none",
+              color: "white",
+              fontSize: "30px",
+              cursor: "pointer"
+            }}
+          >
+            ×
+          </button>
+          
+          <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: "90%", maxHeight: "80%" }}>
+            {mediaType === "image" && (
+              <img src={mediaUrl} alt="Expanded Media" style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain", borderRadius: "8px" }} />
+            )}
+            {mediaType === "video" && (
+              <video src={mediaUrl} controls autoPlay style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: "8px" }} />
+            )}
+          </div>
+
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+            style={{
+              marginTop: "20px",
+              padding: "10px 20px",
+              backgroundColor: "#4f46e5",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontWeight: "bold"
+            }}
+            disabled={loading}
+          >
+            {loading ? "Downloading..." : "Download Original"}
+          </button>
+        </div>
       )}
-    </div>
+    </>
   );
 };
 
