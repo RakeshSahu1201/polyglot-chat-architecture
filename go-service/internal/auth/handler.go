@@ -2,9 +2,11 @@ package auth
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/polyglot-chat/go-service/ent"
+	"github.com/polyglot-chat/go-service/pkg/db"
 	"github.com/polyglot-chat/go-service/pkg/logs"
 )
 
@@ -145,4 +147,24 @@ func GetUsersHandler(c *gin.Context) {
 
 	logs.Info("auth users: success", "count", len(response), "ip", c.ClientIP())
 	c.JSON(http.StatusOK, gin.H{"data": response})
+}
+
+// POST /auth/logout (requires Auth middleware)
+func Logout(c *gin.Context) {
+	jti, _ := c.Get("jti")
+	userID, _ := c.Get("userID")
+
+	if jtiStr, ok := jti.(string); ok && jtiStr != "" {
+		// Write to redis
+		// we know token expiration is 7 days
+		if db.Redis != nil {
+			err := db.Redis.Set(c.Request.Context(), "blacklist:"+jtiStr, "revoked", 7*24*time.Hour).Err()
+			if err != nil {
+				logs.Info("auth logout: redis blacklist failed", "jti", jtiStr, "error", err)
+			}
+		}
+	}
+
+	logs.Info("auth logout: success", "user_id", userID, "ip", c.ClientIP())
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }

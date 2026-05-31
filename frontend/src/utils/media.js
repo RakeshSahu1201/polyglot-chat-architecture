@@ -18,11 +18,13 @@ export const buildIpfsGatewayUrl = (cid, originalName = "") => {
 export const resolveMediaSource = (media = {}) => {
   const cid = media.cid || media.media_cid || "";
   const originalName = media.original_name || media.originalName || "";
+  const thumbnailUrl = media.thumbnail_url || media.thumbnailUrl || "";
 
   if (cid) {
     return {
       cid,
       url: buildIpfsGatewayUrl(cid, originalName),
+      thumbnailUrl,
       originalName,
     };
   }
@@ -31,6 +33,7 @@ export const resolveMediaSource = (media = {}) => {
     return {
       cid: "",
       url: media.gateway_url || media.gatewayUrl,
+      thumbnailUrl,
       originalName,
     };
   }
@@ -39,6 +42,7 @@ export const resolveMediaSource = (media = {}) => {
     return {
       cid: trimIpfsPrefix(media.media_url),
       url: buildIpfsGatewayUrl(trimIpfsPrefix(media.media_url), originalName),
+      thumbnailUrl,
       originalName,
     };
   }
@@ -46,6 +50,7 @@ export const resolveMediaSource = (media = {}) => {
   return {
     cid: "",
     url: media.media_url || "",
+    thumbnailUrl,
     originalName,
   };
 };

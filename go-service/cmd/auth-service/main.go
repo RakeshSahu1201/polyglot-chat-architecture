@@ -25,6 +25,12 @@ func main() {
 	}
 	logs.Info("auth service: PostgreSQL connected")
 
+	// Redis
+	if err := db.InitRedis(); err != nil {
+		panic(err)
+	}
+	logs.Info("auth service: Redis connected")
+
 	r := gin.Default()
 
 	// CORS
@@ -44,6 +50,7 @@ func main() {
 	{
 		authGroup.POST("/register", auth.Register)
 		authGroup.POST("/login", auth.Login)
+		authGroup.POST("/logout", middleware.Auth(), auth.Logout)
 		authGroup.GET("/me", middleware.Auth(), auth.Me)
 	}
 

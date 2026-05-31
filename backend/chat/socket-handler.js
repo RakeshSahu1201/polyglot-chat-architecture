@@ -91,6 +91,7 @@ const setupSocketHandlers = (io, redis) => {
           to: message.to || null,
           body: message.body,
           media_url: message.media_url || "",
+          thumbnail_url: message.thumbnail_url || "",
           message_type: message.channel_id ? "channel" : "dm",
           channel_id: message.channel_id || null,
         });

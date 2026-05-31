@@ -3,7 +3,7 @@ const { conversation } = require("../model/Conversation");
 /**
  * Save a message to MongoDB
  */
-const saveMessage = async ({ from, to, body, media_url = "", message_type = "dm", channel_id = null }) => {
+const saveMessage = async ({ from, to, body, media_url = "", thumbnail_url = "", message_type = "dm", channel_id = null }) => {
   try {
     const isChannelMessage = message_type === "channel" || Boolean(channel_id);
 
@@ -24,6 +24,7 @@ const saveMessage = async ({ from, to, body, media_url = "", message_type = "dm"
       to: isChannelMessage ? to || channel_id || "channel" : to,
       body,
       media_url,
+      thumbnail_url,
       message_type, // "dm" or "channel"
       channel_id, // null for DMs, UUID for channel messages
     };

@@ -77,8 +77,10 @@ services:
       - PG_SSLMODE=disable
       - JWT_SECRET=super_secret_key_123
       - CORS_ORIGIN=http://localhost
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - postgres
+      - redis
     networks:
       - chat-net
     restart: unless-stopped

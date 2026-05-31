@@ -6,6 +6,7 @@ const conversationSchema = mongoose.Schema(
     to: { type: String, required: [true, "to is required"] },
     body: { type: String, default: "" },
     media_url: { type: String, default: "" },
+    thumbnail_url: { type: String, default: "" },
     message_type: {
       type: String,
       enum: ["dm", "channel"],

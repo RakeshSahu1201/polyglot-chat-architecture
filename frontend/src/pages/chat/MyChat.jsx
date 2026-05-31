@@ -106,14 +106,24 @@ const MyChat = () => {
     };
   }, [logged_user]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      if (token) {
+        await axios.post(`${API_URL}/auth/logout`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+    } catch (err) {
+      console.error("Logout API failed:", err);
+    }
+
     if (wsRef.current) {
       wsRef.current.close();
     }
     if (socket) {
       socket.disconnect();
     }
-    navigate("/");
+    navigate("/", { replace: true, state: null });
   };
 
   // Fetch conversation history when switching chat partner (DM)

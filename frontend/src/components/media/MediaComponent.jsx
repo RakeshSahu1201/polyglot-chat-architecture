@@ -6,7 +6,7 @@ const MediaComponent = ({ media }) => {
   const [loading, setLoading] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [play, setPlay] = useState(false);
-  const { url: mediaUrl, originalName } = useMemo(
+  const { url: mediaUrl, thumbnailUrl, originalName } = useMemo(
     () => resolveMediaSource(media),
     [media]
   );
@@ -39,24 +39,32 @@ const MediaComponent = ({ media }) => {
       const url = window.URL.createObjectURL(new Blob([result.data]));
       const link = document.createElement("a");
       link.href = url;
-
-      // Extract the filename from the URL or use a generic name if not present
       link.setAttribute("download", derivedFilename);
-
       document.body.appendChild(link);
       link.click();
-    } catch (error) {
-      console.error("Error downloading media:", error.message);
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download failed", err);
     } finally {
       setLoading(false);
     }
   };
 
+  const extension = derivedFilename ? derivedFilename.split(".").pop().toLowerCase() : "";
   const mediaType = (() => {
-    const extension = derivedFilename.split(".").pop().toLowerCase();
-    if (["jpg", "jpeg", "png", "gif"].includes(extension)) {
+    if (media.kind && ["image", "video", "audio"].includes(media.kind)) {
+      return media.kind;
+    }
+
+    if (
+      ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension) ||
+      (media.mime_type || media.mimeType || "").startsWith("image/")
+    ) {
       return "image";
-    } else if (["txt", "pdf", "doc"].includes(extension)) {
+    } else if (
+      ["txt", "md", "csv", "json", "pdf", "docx", "xlsx"].includes(extension)
+    ) {
       return "text";
     } else if (["mp4", "webm", "ogg", "mkv"].includes(extension)) {
       return "video";
@@ -82,7 +90,7 @@ const MediaComponent = ({ media }) => {
       >
         {mediaType === "image" && (
           <img
-            src={mediaUrl}
+            src={thumbnailUrl || mediaUrl}
             alt="Media preview"
             loading="lazy"
             style={{ maxWidth: "100%", maxHeight: "150px", borderRadius: "8px", objectFit: "cover" }}

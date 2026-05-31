@@ -27,7 +27,7 @@ const Auth = () => {
         toast.error(result.data.error);
         return;
       }
-      navigate("/chat", { state: { user: result.data.user, token: result.data.token } });
+      navigate("/chat", { state: { user: result.data.user, token: result.data.token }, replace: true });
     } catch (error) {
       const msg = error.response?.data?.error || error.message;
       toast.error(msg);
@@ -51,7 +51,7 @@ const Auth = () => {
         toast.error(result.data.error);
         return;
       }
-      navigate("/chat", { state: { user: result.data.user, token: result.data.token } });
+      navigate("/chat", { state: { user: result.data.user, token: result.data.token }, replace: true });
     } catch (error) {
       const msg = error.response?.data?.error || error.message;
       toast.error(msg);

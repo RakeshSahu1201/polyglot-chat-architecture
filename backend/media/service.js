@@ -119,8 +119,39 @@ const uploadMediaAsset = async ({ file, uploadedBy, kind, metadata }) => {
     throw new Error("uploadedBy is required");
   }
 
+  let thumbnailCid = null;
+  let thumbnailUrl = null;
+
+  if (file.mimetype && file.mimetype.startsWith("image/")) {
+    try {
+      const sharp = require("sharp");
+      const thumbnailBuffer = await sharp(file.buffer)
+        .resize({ width: 300, height: 300, fit: "inside" })
+        .webp({ quality: 70 })
+        .toBuffer();
+
+      const thumbFile = {
+        buffer: thumbnailBuffer,
+        originalname: `thumb_${file.originalname}.webp`,
+        mimetype: "image/webp",
+        size: thumbnailBuffer.length
+      };
+
+      thumbnailCid = await uploadToIpfs(thumbFile);
+      thumbnailUrl = getGatewayUrl(thumbnailCid, thumbFile.originalname);
+    } catch (err) {
+      console.error("Thumbnail generation failed:", err);
+    }
+  }
+
   const cid = await uploadToIpfs(file);
   const gatewayUrl = getGatewayUrl(cid, file.originalname);
+
+  const assetMetadata = metadata || {};
+  if (thumbnailUrl) {
+    assetMetadata.thumbnail_cid = thumbnailCid;
+    assetMetadata.thumbnail_url = thumbnailUrl;
+  }
 
   const asset = await mediaAsset.create({
     cid,
@@ -130,7 +161,7 @@ const uploadMediaAsset = async ({ file, uploadedBy, kind, metadata }) => {
     mime_type: file.mimetype || "application/octet-stream",
     size_bytes: file.size || file.buffer.length,
     gateway_url: gatewayUrl,
-    metadata: metadata || {},
+    metadata: assetMetadata,
   });
 
   return {
@@ -138,6 +169,7 @@ const uploadMediaAsset = async ({ file, uploadedBy, kind, metadata }) => {
     cid: asset.cid,
     media_url: asset.gateway_url,
     gateway_url: asset.gateway_url,
+    thumbnail_url: thumbnailUrl || asset.gateway_url,
     mime_type: asset.mime_type,
     original_name: asset.original_name,
     size_bytes: asset.size_bytes,

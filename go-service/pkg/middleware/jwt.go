@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/polyglot-chat/go-service/pkg/db"
 )
 
 type Claims struct {
@@ -36,8 +37,18 @@ func Auth() gin.HandlerFunc {
 			return
 		}
 
+		jti := claims.RegisteredClaims.ID
+		if jti != "" && db.Redis != nil {
+			isBlacklisted, err := db.Redis.Exists(c.Request.Context(), "blacklist:"+jti).Result()
+			if err == nil && isBlacklisted > 0 {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token has been revoked"})
+				return
+			}
+		}
+
 		c.Set("userID", claims.ID)
 		c.Set("userName", claims.Name)
+		c.Set("jti", jti)
 		c.Next()
 	}
 }
