@@ -111,6 +111,7 @@ jobs:
           # Pinata IPFS
           PINATA_JWT=${{ secrets.PREPROD_PINATA_JWT }}
           PINATA_API_URL=https://api.pinata.cloud
+          IPFS_GATEWAY_BASE_URL=${{ secrets.PREPROD_VITE_IPFS_GATEWAY_URL }}
           EOF
 
       - name: Pull images & restart services

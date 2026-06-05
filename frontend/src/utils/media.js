@@ -18,7 +18,12 @@ export const buildIpfsGatewayUrl = (cid, originalName = "") => {
 export const resolveMediaSource = (media = {}) => {
   const cid = media.cid || media.media_cid || "";
   const originalName = media.original_name || media.originalName || "";
-  const thumbnailUrl = media.thumbnail_url || media.thumbnailUrl || "";
+  let thumbnailUrl = media.thumbnail_url || media.thumbnailUrl || "";
+  
+  // Rewrite hardcoded local gateway URLs from legacy records
+  if (thumbnailUrl && thumbnailUrl.includes("localhost/ipfs")) {
+    thumbnailUrl = thumbnailUrl.replace(/https?:\/\/[^\/]+\/ipfs/i, defaultGatewayBase);
+  }
 
   if (cid) {
     return {
