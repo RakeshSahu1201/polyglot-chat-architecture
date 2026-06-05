@@ -327,6 +327,7 @@ const MyChat = () => {
               body: "",
               cid: result.data.cid || "",
               media_url: normalizedMedia.url,
+              thumbnail_url: normalizedMedia.thumbnailUrl,
             })
           );
         } else {
@@ -352,6 +353,7 @@ const MyChat = () => {
               body: "",
               cid: result.data.cid || "",
               media_url: resolveMediaSource(result.data).url,
+              thumbnail_url: resolveMediaSource(result.data).thumbnailUrl,
             },
           },
           ({ error }) => {

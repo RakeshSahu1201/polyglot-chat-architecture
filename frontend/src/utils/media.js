@@ -1,6 +1,11 @@
-const defaultGatewayBase = (
+let defaultGatewayBase = (
   import.meta.env.VITE_IPFS_GATEWAY_URL || `${window.location.origin}/ipfs`
 ).replace(/\/$/, "");
+
+// If the environment variable was incorrectly set to the local server (which has no IPFS node in preprod), force Pinata.
+if (defaultGatewayBase.includes("duckdns.org") || defaultGatewayBase.includes("localhost")) {
+  defaultGatewayBase = "https://gateway.pinata.cloud/ipfs";
+}
 
 const trimIpfsPrefix = (value = "") => value.replace(/^ipfs:\/\//, "");
 
@@ -18,11 +23,11 @@ export const buildIpfsGatewayUrl = (cid, originalName = "") => {
 export const resolveMediaSource = (media = {}) => {
   const cid = media.cid || media.media_cid || "";
   const originalName = media.original_name || media.originalName || "";
-  let thumbnailUrl = media.thumbnail_url || media.thumbnailUrl || "";
+  let thumbnailUrl = media.thumbnail_url || media.thumbnailUrl || media.metadata?.thumbnail_url || media.metadata?.thumbnailUrl || "";
   
   // Rewrite hardcoded local gateway URLs from legacy records
-  if (thumbnailUrl && thumbnailUrl.includes("localhost/ipfs")) {
-    thumbnailUrl = thumbnailUrl.replace(/https?:\/\/[^\/]+\/ipfs/i, defaultGatewayBase);
+  if (thumbnailUrl && (thumbnailUrl.includes("localhost/ipfs") || thumbnailUrl.includes("duckdns.org:8000/api/ipfs"))) {
+    thumbnailUrl = thumbnailUrl.replace(/https?:\/\/[^\/]+\/(api\/)?ipfs/i, defaultGatewayBase);
   }
 
   if (cid) {
