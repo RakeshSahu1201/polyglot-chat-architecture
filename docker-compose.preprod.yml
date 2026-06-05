@@ -56,10 +56,11 @@ services:
 
   # Go Auth Service
   auth-service:
-    image: ${DOCKER_USERNAME:-rakeshsahu1201}/polyglot-chat-auth-service:preprod
+    image: ${DOCKER_USERNAME:-rakeshsahu1201}/polyglot-chat-go-backend:preprod
     build:
       context: ./go-service
-      dockerfile: Dockerfile.auth
+      dockerfile: Dockerfile
+    command: ["/app/auth-service"]
     container_name: chat-auth-preprod
     environment:
       # Supabase PostgreSQL (use your Supabase credentials)
@@ -85,10 +86,11 @@ services:
 
   # Go Channel Service
   channel-service:
-    image: ${DOCKER_USERNAME:-rakeshsahu1201}/polyglot-chat-channel-service:preprod
+    image: ${DOCKER_USERNAME:-rakeshsahu1201}/polyglot-chat-go-backend:preprod
     build:
       context: ./go-service
-      dockerfile: Dockerfile.channel
+      dockerfile: Dockerfile
+    command: ["/app/channel-service"]
     container_name: chat-channel-preprod
     environment:
       # Supabase PostgreSQL
@@ -124,10 +126,11 @@ services:
 
   # Go Worker Service
   worker-service:
-    image: ${DOCKER_USERNAME:-rakeshsahu1201}/polyglot-chat-worker-service:preprod
+    image: ${DOCKER_USERNAME:-rakeshsahu1201}/polyglot-chat-go-backend:preprod
     build:
       context: ./go-service
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile
+    command: ["/app/worker"]
     container_name: chat-worker-preprod
     environment:
       # Supabase PostgreSQL

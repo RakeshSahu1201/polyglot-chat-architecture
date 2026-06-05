@@ -65,7 +65,8 @@ services:
   auth-service:
     build:
       context: ./go-service
-      dockerfile: Dockerfile.auth
+      dockerfile: Dockerfile
+    command: ["/app/auth-service"]
     container_name: chat-auth
     environment:
       - AUTH_PORT=8080
@@ -90,7 +91,8 @@ services:
   channel-service:
     build:
       context: ./go-service
-      dockerfile: Dockerfile.channel
+      dockerfile: Dockerfile
+    command: ["/app/channel-service"]
     container_name: chat-channel
     environment:
       - CHANNEL_PORT=8081
@@ -116,7 +118,8 @@ services:
   worker-service:
     build:
       context: ./go-service
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile
+    command: ["/app/worker"]
     container_name: chat-worker
     environment:
       - PG_HOST=postgres

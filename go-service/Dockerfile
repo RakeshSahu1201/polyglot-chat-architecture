@@ -19,17 +19,19 @@ RUN go generate ./ent/...
 ARG TARGETOS
 ARG TARGETARCH
 
-# Build the channel-service binary
+# Build all three binaries
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /auth-service ./cmd/auth-service/main.go
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /channel-service ./cmd/channel-service/main.go
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /worker ./cmd/worker-service/main.go
 
 # Final stage
 FROM alpine:latest
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binaries from builder
+COPY --from=builder /auth-service /app/auth-service
 COPY --from=builder /channel-service /app/channel-service
+COPY --from=builder /worker /app/worker
 
-# Expose port
-EXPOSE 8081
-
-CMD ["/app/channel-service"]
+# Default command (can be overridden in docker-compose.yml)
+CMD ["/app/auth-service"]
