@@ -76,6 +76,9 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
       - NODE_ENV=preprod
+      
+      # Redis
+      - REDIS_URL=redis://redis:6379/0
     networks:
       - chat-net
     restart: unless-stopped
