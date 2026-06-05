@@ -43,7 +43,8 @@ app.use("/media", mediaRoutes);
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost",
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : "http://localhost",
+    methods: ["GET", "POST"],
     credentials: true,
   },
 });
