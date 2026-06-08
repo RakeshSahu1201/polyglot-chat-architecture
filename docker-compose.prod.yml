@@ -13,8 +13,11 @@ services:
     container_name: chat-api-gateway-prod
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/html:/var/www/html:ro
     depends_on:
       auth-service:
         condition: service_started
@@ -227,7 +230,7 @@ services:
       - chat-net
     restart: unless-stopped
     expose:
-      - "5173"
+      - "80"
     depends_on:
       - nodejs
       - auth-service

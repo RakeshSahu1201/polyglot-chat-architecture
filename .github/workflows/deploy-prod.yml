@@ -51,7 +51,9 @@ jobs:
         env:
           DOCKER_DEFAULT_PLATFORM: linux/amd64
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          VITE_API_URL: ${{ secrets.PROD_VITE_API_URL }}
+          VITE_AUTH_URL: ${{ secrets.PROD_SERVER_BASE_URL }}/api/auth
+          VITE_CHANNEL_URL: ${{ secrets.PROD_SERVER_BASE_URL }}/api/channels
+          VITE_SERVER_URL: ${{ secrets.PROD_SERVER_BASE_URL }}/api/chat
           VITE_IPFS_GATEWAY_URL: ${{ secrets.PREPROD_VITE_IPFS_GATEWAY_URL }}
         run: |
           docker compose -f ${{ env.COMPOSE_FILE }} build
