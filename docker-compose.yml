@@ -31,10 +31,10 @@ services:
     environment:
       POSTGRES_USER: chatuser
       POSTGRES_PASSWORD: chatpass
+      POSTGRES_DB: chatdb
     ports:
       - "5432:5432"
     volumes:
-      - ./db-init:/docker-entrypoint-initdb.d
       - pgdata:/var/lib/postgresql/data
     networks:
       - chat-net
@@ -80,8 +80,10 @@ services:
       - CORS_ORIGIN=http://localhost
       - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - chat-net
     restart: unless-stopped
@@ -107,8 +109,10 @@ services:
       - CORS_ORIGIN=http://localhost
       - MEDIA_SERVICE_URL=http://nodejs:5000
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - chat-net
     restart: unless-stopped
@@ -138,9 +142,12 @@ services:
       - WORKER_MEDIA_SWEEP_MINUTES=30
       - WORKER_MEDIA_GRACE_HOURS=1
     depends_on:
-      - postgres
-      - mongodb
-      - ipfs
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+      ipfs:
+        condition: service_started
     networks:
       - chat-net
     restart: unless-stopped
@@ -164,9 +171,14 @@ services:
       - IPFS_API_URL=http://ipfs:5001
       - IPFS_GATEWAY_BASE_URL=http://localhost/ipfs
     depends_on:
-      - mongodb
-      - redis
-      - ipfs
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_started
+      ipfs:
+        condition: service_started
     networks:
       - chat-net
     restart: unless-stopped
