@@ -11,8 +11,8 @@ services:
   api-gateway:
     image: nginx:alpine
     container_name: chat-api-gateway-prod
-    expose:
-      - "80"
+    ports:
+      - "80:80"
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -26,7 +26,6 @@ services:
         condition: service_started
     networks:
       - chat-net
-      - nginx-proxy-network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 10s
@@ -237,8 +236,6 @@ services:
 networks:
   chat-net:
     driver: bridge
-  nginx-proxy-network:
-    external: true
 
 volumes:
   redis_data:
